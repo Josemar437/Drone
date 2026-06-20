@@ -1,0 +1,31 @@
+# Componente principal do firmware. A pagina HTML e embutida no binario.
+idf_component_register(
+    SRCS
+        "app_main.c"
+        "app_state.c"
+        "drone_pid.c"
+        "esc_pwm.c"
+        "i2c_bus.c"
+        "calibration_store.c"
+        "mpu9259.c"
+        "bmp280.c"
+        "neo6m_gps.c"
+        "sensor_hub.c"
+        "flight_control.c"
+        "vertical_control.c"
+        "wifi_ap.c"
+        "web_server.c"
+    INCLUDE_DIRS
+        "."
+    EMBED_TXTFILES
+        "index.html"
+    REQUIRES
+        driver
+        esp_timer
+        esp_system
+        nvs_flash
+        esp_wifi
+        esp_netif
+        esp_event
+        esp_http_server
+)

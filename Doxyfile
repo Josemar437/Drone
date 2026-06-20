@@ -1,0 +1,129 @@
+# Doxyfile - Configuracao da documentacao da controladora de voo (ESP-IDF).
+#
+# Uso:
+#   doxygen Doxyfile            # gera HTML em docs/doxygen/html/index.html
+# Requisitos:
+#   sudo apt install doxygen graphviz   # graphviz e opcional (grafos)
+#
+# Apenas as opcoes relevantes ao projeto estao definidas; as demais usam o
+# padrao do Doxygen.
+
+#---------------------------------------------------------------------------
+# Projeto
+#---------------------------------------------------------------------------
+PROJECT_NAME           = "Controladora de Voo (ESP-IDF)"
+PROJECT_BRIEF          = "Firmware de quadricoptero ESP32 em C - PWM, sensores, controle em cascata e servidor web"
+OUTPUT_DIRECTORY       = docs/doxygen
+OUTPUT_LANGUAGE        = Brazilian
+CREATE_SUBDIRS         = NO
+ALLOW_UNICODE_NAMES    = YES
+
+#---------------------------------------------------------------------------
+# Como interpretar o codigo (projeto em C)
+#---------------------------------------------------------------------------
+OPTIMIZE_OUTPUT_FOR_C  = YES
+TYPEDEF_HIDES_STRUCT   = YES          # "typedef struct {...} foo_t" documenta como foo_t
+MARKDOWN_SUPPORT       = YES
+AUTOLINK_SUPPORT       = YES
+TAB_SIZE               = 4
+JAVADOC_AUTOBRIEF      = YES          # 1a linha do bloco /** vira o @brief
+QT_AUTOBRIEF           = YES
+INPUT_ENCODING         = UTF-8
+
+#---------------------------------------------------------------------------
+# O que documentar
+#---------------------------------------------------------------------------
+# EXTRACT_STATIC e essencial: as funcoes internas (static) deste projeto foram
+# documentadas e devem aparecer na saida.
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = YES
+EXTRACT_PRIVATE        = YES
+EXTRACT_LOCAL_CLASSES  = YES
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+INTERNAL_DOCS          = YES
+SORT_MEMBER_DOCS       = NO           # mantem a ordem do codigo-fonte
+SORT_BRIEF_DOCS        = NO
+
+#---------------------------------------------------------------------------
+# Entradas
+#---------------------------------------------------------------------------
+INPUT                  = main \
+                         CLAUDE.md \
+                         TESTE_BANCADA.md
+FILE_PATTERNS          = *.c *.h *.md
+RECURSIVE              = YES
+# index.html e a pagina web embutida (nao e codigo a documentar).
+EXCLUDE                = main/index.html
+EXCLUDE_PATTERNS       = */build/* */pwm/* */firmeware/*
+STRIP_FROM_PATH        = .
+USE_MDFILE_AS_MAINPAGE = CLAUDE.md
+
+#---------------------------------------------------------------------------
+# Navegacao pelo codigo-fonte
+#---------------------------------------------------------------------------
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+VERBATIM_HEADERS       = YES
+
+#---------------------------------------------------------------------------
+# Avisos (ajudam a manter a documentacao completa)
+#---------------------------------------------------------------------------
+QUIET                  = NO
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = YES
+WARN_IF_DOC_ERROR      = YES
+WARN_NO_PARAMDOC       = YES          # avisa @param faltando
+WARN_AS_ERROR          = NO
+
+#---------------------------------------------------------------------------
+# Saida HTML
+#---------------------------------------------------------------------------
+GENERATE_HTML          = YES
+HTML_OUTPUT            = html
+HTML_FILE_EXTENSION    = .html
+GENERATE_TREEVIEW      = YES          # arvore de navegacao lateral
+DISABLE_INDEX          = NO
+FULL_SIDEBAR           = NO
+HTML_COLORSTYLE        = AUTO_LIGHT
+SEARCHENGINE           = YES
+
+#---------------------------------------------------------------------------
+# Saida LaTeX/PDF (desativada por padrao: requer LaTeX instalado)
+# Para gerar PDF: defina GENERATE_LATEX = YES, rode doxygen e depois
+#   make -C docs/doxygen/latex   # produz refman.pdf
+#---------------------------------------------------------------------------
+GENERATE_LATEX         = NO
+PDF_HYPERLINKS         = YES
+USE_PDFLATEX           = YES
+
+#---------------------------------------------------------------------------
+# Outras saidas desativadas
+#---------------------------------------------------------------------------
+GENERATE_XML           = NO
+GENERATE_RTF           = NO
+GENERATE_MAN           = NO
+GENERATE_DOCBOOK       = NO
+
+#---------------------------------------------------------------------------
+# Pre-processador (o parser do Doxygen, nao o compilador)
+#---------------------------------------------------------------------------
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = YES
+# Neutraliza atributos/asm de GCC para o parser nao se confundir.
+PREDEFINED             = __attribute__(x)= \
+                         __asm__(x)= \
+                         asm(x)=
+
+#---------------------------------------------------------------------------
+# Grafos (opcionais; requerem graphviz/dot)
+#---------------------------------------------------------------------------
+HAVE_DOT               = NO           # mude para YES se tiver graphviz instalado
+CALL_GRAPH             = NO
+CALLER_GRAPH           = NO
+CLASS_GRAPH            = YES
+INCLUDE_GRAPH          = YES
+INCLUDED_BY_GRAPH      = YES

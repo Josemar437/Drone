@@ -1,0 +1,2009 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-store">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Drone Avionics Console</title>
+  <style>
+    :root {
+      --bg: #050a0f;
+      --panel: #0b131c;
+      --panel-soft: #101c28;
+      --panel-deep: #071019;
+      --line: #24394b;
+      --line-strong: #22b8cf;
+      --text: #f2f6fc;
+      --muted: #9aa7ba;
+      --muted-2: #748196;
+      --ok: #35c98f;
+      --warn: #f6ad55;
+      --danger: #ef4444;
+      --danger-dark: #dc2626;
+      --neutral: #3d495b;
+      --neutral-dark: #303a49;
+      --focus: #66d9e8;
+      --radius: 2px;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; min-height: 100dvh; background: var(--bg); }
+    body {
+      font-family: Consolas, 'Segoe UI', monospace;
+      background:
+        linear-gradient(180deg, rgba(34, 184, 207, 0.10), transparent 260px),
+        repeating-linear-gradient(90deg, transparent 0, transparent 39px, rgba(255,255,255,.012) 40px),
+        var(--bg);
+      color: var(--text);
+      min-height: 100dvh;
+      display: flex;
+      justify-content: stretch;
+      align-items: flex-start;
+      padding: 0;
+    }
+    .container {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 20px 48px rgba(0,0,0,0.36);
+      padding: clamp(12px, 2vw, 28px);
+      max-width: none;
+      min-height: 100dvh;
+      width: 100%;
+    }
+    .hero {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 20px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+    h1 {
+      color: var(--text);
+      text-align: left;
+      font-size: 25px;
+      line-height: 1.2;
+      margin-bottom: 0;
+      letter-spacing: 0;
+      font-weight: 800;
+    }
+    .title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 26px;
+      padding: 4px 9px;
+      background: rgba(54, 211, 153, 0.12);
+      border: 1px solid rgba(54, 211, 153, 0.28);
+      color: var(--ok);
+      font-size: 11px;
+      font-weight: 800;
+      white-space: nowrap;
+      letter-spacing: 1px;
+    }
+    .status {
+      text-align: left;
+      color: var(--ok);
+      font-weight: 700;
+      margin-bottom: 0;
+      font-size: 13px;
+    }
+    .substatus {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    #motorsContainer {
+      display: grid;
+      gap: 12px;
+    }
+    .motor-control {
+      position: relative;
+      overflow: hidden;
+      padding: 16px;
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: inset 3px 0 0 var(--line-strong);
+    }
+    .motor-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 14px;
+      font-weight: 700;
+      color: var(--text);
+      font-size: 14px;
+    }
+    .motor-title {
+      display: grid;
+      gap: 4px;
+    }
+    .motor-name {
+      font-size: 15px;
+      line-height: 1.2;
+    }
+    .motor-meta {
+      color: var(--muted-2);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .motor-speed {
+      color: #7db2ff;
+      font-size: 19px;
+      line-height: 1;
+      min-width: 46px;
+      text-align: right;
+    }
+    input[type="range"] {
+      width: 100%;
+      height: 10px;
+      border-radius: 0;
+      background: linear-gradient(90deg, var(--line-strong) 0%, var(--line-strong) var(--value, 0%), #2a3444 var(--value, 0%), #2a3444 100%);
+      outline: none;
+      -webkit-appearance: none; appearance: none;
+      accent-color: var(--line-strong);
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 18px; height: 24px; border-radius: 2px;
+      background: var(--line-strong); cursor: pointer;
+      border: 2px solid #dce9ff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 18px; height: 24px; border-radius: 2px;
+      background: var(--line-strong); cursor: pointer;
+      border: 2px solid #dce9ff;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    }
+    input[type="range"]:focus-visible {
+      outline: 2px solid var(--focus);
+      outline-offset: 6px;
+    }
+    .button-group { display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; margin-top: 22px; }
+    button {
+      min-height: 52px;
+      padding: 13px 12px;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s, transform 0.2s;
+    }
+    button:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+    .btn-stop  { background: var(--danger); color: white; border-color: #f87171; }
+    .btn-stop:hover  { background: var(--danger-dark); transform: translateY(-1px); }
+    .btn-reset { background: var(--neutral); color: white; border-color: #64748b; }
+    .btn-reset:hover { background: var(--neutral-dark); transform: translateY(-1px); }
+    .info-box {
+      background: var(--panel-deep);
+      border: 1px solid var(--line);
+      padding: 16px;
+      border-radius: var(--radius);
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 20px;
+      line-height: 1.7;
+    }
+    .info-title {
+      display: block;
+      color: var(--text);
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .info-item {
+      border: 1px solid #1d2838;
+      background: #0f1622;
+      padding: 10px;
+    }
+    .info-label {
+      display: block;
+      color: var(--muted-2);
+      font-size: 11px;
+      line-height: 1.1;
+      margin-bottom: 3px;
+    }
+    .info-value {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 800;
+      overflow-wrap: anywhere;
+    }
+    .info-note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+    .divider {
+      height: 1px;
+      background: var(--line);
+      margin: 22px 0 0;
+    }
+    .arming-notice {
+      text-align: center;
+      color: var(--warn);
+      font-weight: 800;
+      font-size: 13px;
+      margin-bottom: 15px;
+      display: none;
+    }
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 8px;
+      margin-bottom: 18px;
+      padding: 4px;
+      background: var(--panel-deep);
+      border: 1px solid var(--line);
+    }
+    .tab-btn {
+      min-height: 44px;
+      background: transparent;
+      color: var(--muted);
+      border-color: transparent;
+      font-size: 13px;
+    }
+    .tab-btn.active {
+      background: #123746;
+      color: white;
+      border-color: var(--line-strong);
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 14px;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 800;
+    }
+    .flight-grid {
+      display: grid;
+      gap: 12px;
+    }
+    .flight-card {
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .field {
+      display: grid;
+      gap: 5px;
+    }
+    .field.full { grid-column: 1 / -1; }
+    .field label {
+      color: var(--muted-2);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .field input[type="number"] {
+      width: 100%;
+      min-height: 40px;
+      background: var(--panel-deep);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 9px 10px;
+      font: inherit;
+      font-weight: 700;
+    }
+    .field input[type="number"]:focus {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+    .output-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+    .output-cell {
+      background: var(--panel-deep);
+      border: 1px solid var(--line);
+      padding: 10px 8px;
+      text-align: center;
+    }
+    .output-label {
+      display: block;
+      color: var(--muted-2);
+      font-size: 11px;
+      font-weight: 800;
+      margin-bottom: 3px;
+    }
+    .output-value {
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 800;
+    }
+    .flight-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .btn-primary {
+      background: var(--line-strong);
+      color: white;
+      border-color: var(--focus);
+    }
+    .btn-primary:hover { background: #256fd8; transform: translateY(-1px); }
+    .btn-warn {
+      background: #b45309;
+      color: white;
+      border-color: #f59e0b;
+    }
+    .btn-warn:hover { background: #92400e; transform: translateY(-1px); }
+    .calibration-grid {
+      display: grid;
+      gap: 12px;
+    }
+    .calibration-card {
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+    .calibration-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      font-size: 14px;
+      font-weight: 800;
+    }
+    .trim-row {
+      display: grid;
+      grid-template-columns: 1fr 64px;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .trim-value {
+      color: #7db2ff;
+      font-size: 14px;
+      font-weight: 800;
+      text-align: right;
+    }
+    .calibration-actions {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+    .save-status {
+      min-height: 18px;
+      margin-top: 10px;
+      color: var(--ok);
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .telemetry-grid {
+      display: grid;
+      gap: 12px;
+    }
+    .telemetry-card {
+      background: linear-gradient(180deg, #101d29, #0a131c);
+      border: 1px solid var(--line);
+      padding: 16px;
+      box-shadow: inset 3px 0 0 var(--line-strong);
+    }
+    .telemetry-values {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .telemetry-value {
+      background: var(--panel-deep);
+      border: 1px solid var(--line);
+      padding: 9px;
+    }
+    .telemetry-value span {
+      display: block;
+      color: var(--muted-2);
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .telemetry-value strong {
+      color: var(--text);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+    .sensor-calibration {
+      min-height: 30px;
+      padding: 6px 9px;
+      background: #174252;
+      color: white;
+      font-size: 10px;
+    }
+    .joystick-panel {
+      display: grid;
+      gap: 14px;
+      padding: 12px 0;
+    }
+    .joystick-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(10px, 3vw, 34px);
+    }
+    .joystick-column {
+      display: grid;
+      justify-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .joystick-title {
+      color: var(--focus);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+    .joystick-base {
+      position: relative;
+      width: min(100%, 330px);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background:
+        linear-gradient(transparent 49.5%, rgba(255,255,255,.22) 50%, transparent 50.5%),
+        linear-gradient(90deg, transparent 49.5%, rgba(255,255,255,.22) 50%, transparent 50.5%),
+        radial-gradient(circle, #193447 0%, #0a1721 68%, #050b10 100%);
+      touch-action: none;
+      user-select: none;
+    }
+    .joystick-stick {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: clamp(42px, 9vw, 72px);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 30%, #8ce9f5, #168da1 55%, #075263);
+      box-shadow: 0 8px 20px rgba(0,0,0,.55) !important;
+      transform: translate(-50%, -50%);
+    }
+    .joystick-readout {
+      color: var(--muted);
+      font-size: 11px;
+      text-align: center;
+    }
+    .joystick-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .joystick-enabled {
+      background: #087f5b;
+      color: white;
+    }
+    .attitude-panel {
+      position: relative;
+      display: grid;
+      justify-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+      background: #071019;
+    }
+    .attitude-title {
+      width: 100%;
+      color: var(--focus);
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+    .attitude-fixed {
+      position: relative;
+      width: 100%;
+      height: clamp(230px, 48vh, 560px);
+      overflow: hidden;
+      background: #071019;
+    }
+    .attitude-world {
+      position: absolute;
+      left: -30%;
+      top: -30%;
+      width: 160%;
+      height: 160%;
+      background: linear-gradient(to bottom, #287bb7 0%, #4aa6d8 49%, #f8fafc 49%, #f8fafc 51%, #996039 51%, #5b3725 100%);
+      transform: translateY(0) rotate(0deg);
+      transition: transform .06s linear;
+    }
+    .attitude-fixed::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 64%;
+      height: 4px;
+      background: #ffd43b;
+      border: 1px solid #4a3700;
+      transform: translate(-50%, -50%);
+    }
+    .attitude-fixed::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 12px;
+      height: 12px;
+      background: #ffd43b;
+      border: 2px solid #4a3700;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .attitude-mark {
+      position: absolute;
+      left: 50%;
+      width: 22%;
+      height: 1px;
+      background: rgba(255,255,255,.9);
+      transform: translateX(-50%);
+    }
+    .attitude-mark.m1 { top: 32%; }
+    .attitude-mark.m2 { top: 40%; width: 34%; }
+    .attitude-mark.m3 { top: 60%; width: 34%; }
+    .attitude-mark.m4 { top: 68%; }
+    .telemetry-summary {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      width: 100%;
+    }
+    .summary-item {
+      padding: 8px;
+      border: 1px solid var(--line);
+      background: #050c13;
+      color: var(--muted);
+      text-align: center;
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+    }
+    .horizon-instrument {
+      position: absolute;
+      top: 12px;
+      min-width: 88px;
+      padding: 7px 9px;
+      background: rgba(3,9,14,.72);
+      color: white;
+      text-align: center;
+      text-shadow: 0 1px 2px black;
+    }
+    .horizon-instrument.altimeter { right: 12px; }
+    .horizon-instrument.compass { left: 12px; }
+    .horizon-instrument span {
+      display: block;
+      color: #d0ebff;
+      font-size: 9px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .horizon-instrument strong {
+      display: block;
+      margin-top: 3px;
+      font-size: 16px;
+    }
+    .horizon-instrument.compass {
+      top: 14px;
+      left: 14px;
+      width: clamp(92px, 14vw, 150px);
+      min-width: 92px;
+      aspect-ratio: 1;
+      padding: 0;
+      display: grid;
+      place-content: center;
+      background: rgba(3,9,14,.18);
+      border-radius: 50%;
+      outline: 2px solid rgba(255,255,255,.55);
+      outline-offset: -7px;
+    }
+    .compass-points {
+      position: absolute;
+      inset: 0;
+      color: white;
+      font-size: 10px;
+      font-weight: 900;
+      text-shadow: 0 1px 2px black;
+    }
+    .compass-points span { position: absolute; }
+    .compass-points .north { top: 8px; left: 50%; transform: translateX(-50%); color: #ff8787; }
+    .compass-points .south { bottom: 8px; left: 50%; transform: translateX(-50%); }
+    .compass-points .east { right: 9px; top: 50%; transform: translateY(-50%); }
+    .compass-points .west { left: 9px; top: 50%; transform: translateY(-50%); }
+    .compass-needle {
+      position: absolute;
+      left: 50%;
+      top: 16%;
+      width: 2px;
+      height: 68%;
+      background: linear-gradient(to bottom, #ff6b6b 0 50%, #f8f9fa 50% 100%);
+      transform: translateX(-50%);
+    }
+    .climb-scale {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      width: 62px;
+      height: 72%;
+      transform: translateY(-50%);
+      color: white;
+      font-size: 10px;
+      font-weight: 900;
+      text-shadow: 0 1px 2px black;
+    }
+    .climb-scale::before {
+      content: "";
+      position: absolute;
+      right: 25px;
+      top: 0;
+      width: 2px;
+      height: 100%;
+      background: rgba(255,255,255,.75);
+    }
+    .angle-tick {
+      position: absolute;
+      right: 25px;
+      width: 14px;
+      height: 1px;
+      background: white;
+    }
+    .angle-tick span {
+      position: absolute;
+      right: 18px;
+      top: -6px;
+      white-space: nowrap;
+    }
+    .angle-tick.a30 { top: 0; }
+    .angle-tick.a20 { top: 16.67%; }
+    .angle-tick.a10 { top: 33.33%; }
+    .angle-tick.a0 { top: 50%; width: 22px; }
+    .angle-tick.d10 { top: 66.67%; }
+    .angle-tick.d20 { top: 83.33%; }
+    .angle-tick.d30 { top: 100%; }
+    .scale-label {
+      position: absolute;
+      right: 0;
+      writing-mode: vertical-rl;
+      letter-spacing: 1px;
+      color: #d0ebff;
+      font-size: 8px;
+      text-transform: uppercase;
+    }
+    .scale-label.up { top: 5px; }
+    .scale-label.down { bottom: 5px; }
+    .auto-level-status {
+      position: absolute;
+      left: 50%;
+      bottom: 14px;
+      z-index: 8;
+      min-width: 180px;
+      padding: 7px 12px;
+      background: rgba(3,9,14,.68);
+      color: #ffd43b;
+      text-align: center;
+      font-size: 10px;
+      font-weight: 900;
+      letter-spacing: 1px;
+      transform: translateX(-50%);
+    }
+    .auto-level-status.ready { color: #69db7c; }
+    *, *::before, *::after {
+      border: none !important;
+    }
+    .container, .motor-control, .telemetry-card, .flight-card, .calibration-card,
+    .attitude-panel, .tabs, .info-box, .info-item, .telemetry-value, .output-cell,
+    .summary-item {
+      box-shadow: none !important;
+    }
+    .divider { display: none; }
+    @media (max-width: 480px) {
+      body { padding: 0; align-items: flex-start; }
+      .container { padding: 10px; }
+      .title-row { align-items: flex-start; }
+      .pill { display: none; }
+      .button-group { grid-template-columns: 1fr; }
+      .field-grid { grid-template-columns: 1fr; }
+      .output-grid { grid-template-columns: 1fr 1fr; }
+      .flight-actions { grid-template-columns: 1fr; }
+      .calibration-actions { grid-template-columns: 1fr; }
+      .info-grid { grid-template-columns: 1fr; }
+      .telemetry-values { grid-template-columns: 1fr 1fr; }
+      .telemetry-summary { grid-template-columns: 1fr 1fr; }
+      .joystick-grid { gap: 8px; }
+      .joystick-actions { grid-template-columns: 1fr; }
+      h1 { font-size: 24px; }
+    }
+    /* Encaixe integral no viewport: somente layout, sem alterar controles. */
+    html, body {
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+    body {
+      height: 100dvh;
+      font-size: clamp(8px, 1.45vmin, 14px);
+    }
+    .container {
+      height: 100dvh;
+      min-height: 0;
+      overflow: hidden;
+      padding: clamp(4px, 1.1vmin, 12px);
+      display: grid;
+      grid-template-rows: minmax(110px, 34dvh) auto minmax(0, 1fr);
+      gap: clamp(4px, .8vmin, 9px);
+    }
+    .attitude-panel {
+      min-height: 0;
+      height: 100%;
+      margin: 0;
+    }
+    .attitude-fixed {
+      height: 100%;
+      min-height: 0;
+    }
+    .status, .arming-notice { margin: 0; }
+    .tabs {
+      margin: 0;
+      padding: clamp(1px, .25vmin, 3px);
+      gap: clamp(1px, .35vmin, 5px);
+    }
+    button {
+      min-height: clamp(28px, 5.4vmin, 46px);
+      padding: clamp(4px, 1vmin, 10px);
+      font-size: clamp(8px, 1.45vmin, 13px);
+    }
+    .tab-btn {
+      min-height: clamp(22px, 3.8vmin, 32px);
+      padding-block: clamp(2px, .45vmin, 5px);
+      font-size: clamp(7px, 1.2vmin, 11px);
+    }
+    .tab-panel.active {
+      display: block;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .section-title {
+      margin-bottom: clamp(3px, .7vmin, 8px);
+      gap: clamp(3px, .7vmin, 8px);
+      font-size: clamp(8px, 1.45vmin, 13px);
+    }
+    .joystick-panel {
+      height: 100%;
+      min-height: 0;
+      padding: 0;
+      gap: clamp(6px, 1vmin, 12px);
+      grid-template-rows: minmax(0, 1fr) clamp(44px, 6.5dvh, 58px);
+    }
+    .joystick-grid {
+      min-height: 0;
+      gap: clamp(4px, 1.4vmin, 18px);
+      align-items: center;
+      overflow: hidden;
+    }
+    .joystick-column {
+      min-height: 0;
+      height: 100%;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: clamp(2px, .6vmin, 7px);
+      align-items: center;
+      align-content: center;
+      overflow: hidden;
+    }
+    .joystick-base {
+      width: min(100%, 27dvh, 330px);
+      height: auto;
+      max-width: 100%;
+      max-height: 100%;
+      aspect-ratio: 1;
+      align-self: center;
+      justify-self: center;
+      flex: none;
+    }
+    .joystick-title, .joystick-readout {
+      font-size: clamp(7px, 1.3vmin, 11px);
+    }
+    .joystick-stick { width: clamp(30px, 7vmin, 58px); }
+    .joystick-actions, .button-group, .flight-actions, .calibration-actions {
+      gap: clamp(3px, .7vmin, 8px);
+      margin-top: clamp(3px, .7vmin, 8px);
+    }
+    .joystick-actions {
+      min-width: 0;
+      min-height: 44px;
+      height: 100%;
+      gap: clamp(3px, .6vmin, 6px);
+      margin-top: 0;
+      align-items: stretch;
+    }
+    .joystick-actions button {
+      min-width: 0;
+      min-height: 44px;
+      max-height: none;
+      height: 100%;
+      padding: clamp(5px, .8vmin, 9px);
+      font-size: clamp(9px, 1.35vmin, 12px);
+      line-height: 1.15;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    #motorsContainer, .flight-grid, .calibration-grid {
+      height: calc(100% - clamp(62px, 13vmin, 110px));
+      min-height: 0;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-rows: repeat(2, minmax(0, 1fr));
+      gap: clamp(3px, .8vmin, 9px);
+    }
+    #tabTest.active {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto auto;
+      gap: clamp(3px, .7vmin, 8px);
+    }
+    #tabTest #motorsContainer {
+      height: 100%;
+    }
+    #tabTest .button-group, #tabTest .info-box {
+      margin-top: 0;
+    }
+    #tabCalibration.active {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto auto auto;
+      gap: clamp(2px, .6vmin, 6px);
+    }
+    #tabCalibration .calibration-grid {
+      height: 100%;
+    }
+    #tabCalibration .calibration-actions,
+    #tabCalibration .info-box,
+    #tabCalibration .save-status {
+      margin-top: 0;
+    }
+    .motor-control, .flight-card, .calibration-card, .telemetry-card {
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+      padding: clamp(4px, 1vmin, 11px);
+    }
+    .motor-label, .calibration-header {
+      gap: clamp(3px, .7vmin, 8px);
+      margin-bottom: clamp(3px, .7vmin, 8px);
+      font-size: clamp(8px, 1.4vmin, 13px);
+    }
+    .motor-name, .motor-speed {
+      font-size: clamp(10px, 1.8vmin, 16px);
+    }
+    .motor-meta, .info-note, .info-box {
+      font-size: clamp(7px, 1.2vmin, 11px);
+    }
+    .info-box {
+      margin-top: clamp(3px, .7vmin, 8px);
+      padding: clamp(3px, .7vmin, 8px);
+      line-height: 1.2;
+    }
+    .info-grid { margin-bottom: 3px; gap: 3px; }
+    .info-item { padding: clamp(2px, .5vmin, 6px); }
+    .flight-grid { height: 100%; }
+    .field-grid {
+      gap: clamp(2px, .5vmin, 6px);
+    }
+    .field { gap: 2px; }
+    .field label, .output-label {
+      font-size: clamp(6px, 1.05vmin, 10px);
+    }
+    .field input[type="number"] {
+      min-height: clamp(22px, 3.8vmin, 34px);
+      padding: clamp(2px, .5vmin, 6px);
+      font-size: clamp(8px, 1.35vmin, 12px);
+    }
+    .output-grid { gap: clamp(2px, .5vmin, 6px); }
+    .output-cell { padding: clamp(2px, .5vmin, 6px); }
+    .output-value { font-size: clamp(8px, 1.4vmin, 13px); }
+    .trim-row {
+      gap: clamp(3px, .7vmin, 8px);
+      margin-bottom: clamp(3px, .7vmin, 8px);
+    }
+    .save-status {
+      min-height: 0;
+      margin-top: 2px;
+      font-size: clamp(7px, 1.2vmin, 11px);
+    }
+    .telemetry-grid {
+      height: 100%;
+      min-height: 0;
+      grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+      grid-template-rows: repeat(2, minmax(0, 1fr));
+      gap: clamp(3px, .7vmin, 8px);
+    }
+    .telemetry-card:first-child {
+      grid-row: 1 / -1;
+    }
+    .telemetry-values {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: clamp(2px, .5vmin, 5px);
+    }
+    .telemetry-value { padding: clamp(2px, .6vmin, 6px); }
+    .telemetry-value span {
+      font-size: clamp(7px, 1.15vmin, 11px);
+      line-height: 1.15;
+    }
+    .telemetry-value strong {
+      font-size: clamp(8px, 1.45vmin, 13px);
+      line-height: 1.25;
+    }
+    .sensor-calibration {
+      min-height: clamp(20px, 3.2vmin, 28px);
+      padding: clamp(2px, .5vmin, 5px);
+      font-size: clamp(6px, 1vmin, 9px);
+    }
+    .horizon-instrument.compass {
+      top: clamp(4px, 1vmin, 12px);
+      left: clamp(4px, 1vmin, 12px);
+      width: clamp(62px, 15vmin, 125px);
+      min-width: 62px;
+    }
+    .horizon-instrument.altimeter {
+      top: clamp(4px, 1vmin, 12px);
+      right: clamp(4px, 1vmin, 12px);
+      padding: clamp(3px, .7vmin, 7px);
+    }
+    .horizon-instrument strong { font-size: clamp(9px, 1.8vmin, 15px); }
+    .horizon-instrument span, .compass-points {
+      font-size: clamp(6px, 1.1vmin, 9px);
+    }
+    .climb-scale {
+      right: clamp(2px, .7vmin, 9px);
+      width: clamp(42px, 7vmin, 58px);
+      font-size: clamp(6px, 1.1vmin, 9px);
+    }
+    .auto-level-status {
+      bottom: clamp(3px, .8vmin, 10px);
+      min-width: 0;
+      padding: clamp(3px, .6vmin, 6px);
+      font-size: clamp(6px, 1.1vmin, 9px);
+    }
+    @media (max-width: 600px) {
+      .container {
+        grid-template-rows: minmax(100px, 30dvh) auto minmax(0, 1fr);
+        padding: 4px;
+      }
+      .tabs { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      .tab-btn { padding-inline: 1px; }
+      .telemetry-grid {
+        grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+        grid-template-rows: repeat(2, minmax(0, 1fr));
+      }
+      .telemetry-values { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .field-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .field.full { grid-column: 1 / -1; }
+      .button-group, .flight-actions, .calibration-actions, .joystick-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .joystick-actions button {
+        font-size: clamp(9px, 2.3vw, 11px);
+        padding-inline: 4px;
+      }
+      .joystick-base { width: min(100%, 25dvh, 42vw); }
+    }
+    @media (max-height: 560px) {
+      .container { grid-template-rows: minmax(80px, 27dvh) auto minmax(0, 1fr); }
+      .horizon-instrument.compass { width: clamp(52px, 13vmin, 90px); min-width: 52px; }
+      .auto-level-status { max-width: 55%; }
+      .info-box { display: none; }
+      .joystick-panel { grid-template-rows: minmax(0, 1fr) 42px; gap: 4px; }
+      .joystick-actions, .joystick-actions button { min-height: 42px; }
+      .joystick-base { width: min(100%, 22dvh, 38vw); }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="attitude-panel">
+    <div class="attitude-fixed">
+      <div class="attitude-world" id="attitudeWorld">
+        <span class="attitude-mark m1"></span>
+        <span class="attitude-mark m2"></span>
+        <span class="attitude-mark m3"></span>
+        <span class="attitude-mark m4"></span>
+      </div>
+      <div class="horizon-instrument compass">
+        <div class="compass-points">
+          <span class="north">N</span><span class="east">E</span>
+          <span class="south">S</span><span class="west">W</span>
+        </div>
+        <div class="compass-needle" id="compassNeedle"></div>
+        <span>Bussola</span><strong id="horizonCompass">---</strong>
+      </div>
+      <div class="horizon-instrument altimeter"><span>Altimetro</span><strong id="horizonAltitude">-- m</strong></div>
+      <div class="climb-scale">
+        <span class="scale-label up">Subida</span>
+        <span class="scale-label down">Descida</span>
+        <span class="angle-tick a30"><span>+30</span></span>
+        <span class="angle-tick a20"><span>+20</span></span>
+        <span class="angle-tick a10"><span>+10</span></span>
+        <span class="angle-tick a0"><span>0</span></span>
+        <span class="angle-tick d10"><span>-10</span></span>
+        <span class="angle-tick d20"><span>-20</span></span>
+        <span class="angle-tick d30"><span>-30</span></span>
+      </div>
+      <div class="auto-level-status" id="autoLevelStatus">AUTONIVELANDO: AGUARDANDO SENSOR</div>
+    </div>
+  </div>
+  <div class="status" id="statusMsg" style="display:none"></div>
+  <div class="arming-notice" id="armingNotice">&#9888; Motores ainda estao sendo armados...</div>
+
+  <div class="tabs">
+    <button class="tab-btn active" id="tabBtnJoysticks" onclick="showTab('joysticks')">Joysticks</button>
+    <button class="tab-btn" id="tabBtnTelemetry" onclick="showTab('telemetry')">Telemetria</button>
+    <button class="tab-btn" id="tabBtnTest" onclick="showTab('test')">Teste PWM</button>
+    <button class="tab-btn" id="tabBtnFlight" onclick="showTab('flight')">Controle de Voo</button>
+    <button class="tab-btn" id="tabBtnCalibration" onclick="showTab('calibration')">Calibracao</button>
+  </div>
+
+  <section class="tab-panel active" id="tabJoysticks">
+    <div class="joystick-panel">
+      <div class="joystick-grid">
+        <div class="joystick-column">
+          <div class="joystick-title">Potencia</div>
+          <div class="joystick-base" id="powerJoystick"><div class="joystick-stick"></div></div>
+          <div class="joystick-readout" id="powerJoystickValue">Throttle: 1000 us</div>
+        </div>
+        <div class="joystick-column">
+          <div class="joystick-title">Direcao</div>
+          <div class="joystick-base" id="directionJoystick"><div class="joystick-stick"></div></div>
+          <div class="joystick-readout" id="directionJoystickValue">Roll: 0 / Pitch: 0</div>
+        </div>
+      </div>
+      <div class="joystick-actions">
+        <button class="btn-primary" id="joystickEnableButton" onclick="toggleJoysticks()">HABILITAR JOYSTICKS</button>
+        <button class="btn-stop" onclick="emergencyJoystickStop()">PARAR TODOS OS MOTORES</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="tabTest">
+    <div id="motorsContainer"></div>
+    <div class="divider"></div>
+
+    <div class="button-group">
+      <button class="btn-stop"  onclick="stopAll()">&#9632; PARAR TUDO</button>
+      <button class="btn-reset" onclick="resetAll()">&#8635; LIMPAR</button>
+    </div>
+
+    <div class="info-box">
+      <strong class="info-title">Informacoes</strong>
+      <div class="info-grid">
+        <div class="info-item">
+          <span class="info-label">Rede</span>
+          <span class="info-value">EQUIPE4-AP</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label">Senha</span>
+          <span class="info-value">12345678</span>
+        </div>
+      </div>
+      <div class="info-note">Sliders ajustam de 0% a 100%. Ao recarregar, a pagina mostra a velocidade atual.</div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="tabFlight">
+    <div class="flight-grid">
+      <div class="flight-card">
+        <div class="section-title">Setpoints de voo</div>
+        <div class="field-grid">
+          <div class="field full">
+            <label for="flightThrottle">Throttle (us)</label>
+            <input id="flightThrottle" type="number" min="1000" max="2000" step="10" value="1000">
+          </div>
+          <div class="field">
+            <label for="rollSp">Roll alvo</label>
+            <input id="rollSp" type="number" min="-35" max="35" step="0.5" value="0">
+          </div>
+          <div class="field">
+            <label for="pitchSp">Pitch alvo</label>
+            <input id="pitchSp" type="number" min="-35" max="35" step="0.5" value="0">
+          </div>
+          <div class="field">
+            <label for="yawSp">Yaw alvo</label>
+            <input id="yawSp" type="number" min="-180" max="180" step="1" value="0">
+          </div>
+        </div>
+      </div>
+
+      <div class="flight-card">
+        <div class="section-title">Estado atual</div>
+        <div class="field-grid">
+          <div class="field">
+            <label for="rollState">Roll</label>
+            <input id="rollState" type="number" min="-180" max="180" step="0.5" value="0">
+          </div>
+          <div class="field">
+            <label for="pitchState">Pitch</label>
+            <input id="pitchState" type="number" min="-180" max="180" step="0.5" value="0">
+          </div>
+          <div class="field">
+            <label for="yawState">Yaw</label>
+            <input id="yawState" type="number" min="-180" max="180" step="1" value="0">
+          </div>
+        </div>
+      </div>
+
+      <div class="flight-card">
+        <div class="section-title">Ganhos PID</div>
+        <div class="field-grid">
+          <div class="field"><label for="rollKp">Roll Kp</label><input id="rollKp" type="number" step="0.01" value="4.00"></div>
+          <div class="field"><label for="rollKi">Roll Ki</label><input id="rollKi" type="number" step="0.001" value="0.020"></div>
+          <div class="field"><label for="rollKd">Roll Kd</label><input id="rollKd" type="number" step="0.01" value="0.90"></div>
+          <div class="field"><label for="pitchKp">Pitch Kp</label><input id="pitchKp" type="number" step="0.01" value="4.00"></div>
+          <div class="field"><label for="pitchKi">Pitch Ki</label><input id="pitchKi" type="number" step="0.001" value="0.020"></div>
+          <div class="field"><label for="pitchKd">Pitch Kd</label><input id="pitchKd" type="number" step="0.01" value="0.90"></div>
+          <div class="field"><label for="yawKp">Yaw Kp</label><input id="yawKp" type="number" step="0.01" value="2.20"></div>
+          <div class="field"><label for="yawKi">Yaw Ki</label><input id="yawKi" type="number" step="0.001" value="0.010"></div>
+          <div class="field"><label for="yawKd">Yaw Kd</label><input id="yawKd" type="number" step="0.01" value="0.30"></div>
+        </div>
+      </div>
+
+      <div class="flight-card">
+        <div class="section-title">Mixagem calculada</div>
+        <div class="output-grid">
+          <div class="output-cell"><span class="output-label">M1</span><span class="output-value" id="flightM1">1000</span></div>
+          <div class="output-cell"><span class="output-label">M2</span><span class="output-value" id="flightM2">1000</span></div>
+          <div class="output-cell"><span class="output-label">M3</span><span class="output-value" id="flightM3">1000</span></div>
+          <div class="output-cell"><span class="output-label">M4</span><span class="output-value" id="flightM4">1000</span></div>
+        </div>
+        <div class="output-grid">
+          <div class="output-cell"><span class="output-label">Controle</span><span class="output-value" id="flightControlMode">MANUAL</span></div>
+          <div class="output-cell"><span class="output-label">Failsafe</span><span class="output-value" id="flightFailsafe">NONE</span></div>
+          <div class="output-cell"><span class="output-label">Taxa R/P</span><span class="output-value" id="flightRates">0 / 0</span></div>
+          <div class="output-cell"><span class="output-label">BMP/GPS</span><span class="output-value" id="flightNavigationReady">-- / --</span></div>
+        </div>
+        <div class="flight-actions">
+          <button class="btn-primary" onclick="sendFlight(false)">CALCULAR MIX</button>
+          <button class="btn-warn" onclick="sendFlight(true)">ATIVAR ESTABILIZACAO</button>
+        </div>
+        <div class="button-group">
+          <button class="btn-reset" onclick="resetPid()">RESET PID</button>
+          <button class="btn-stop" onclick="stopAll()">&#9632; PARAR TUDO</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="tabTelemetry">
+    <div class="telemetry-grid">
+      <div class="telemetry-card">
+        <div class="section-title">
+          <span>MPU9259 <span id="mpuStatus">Aguardando</span></span>
+          <button class="sensor-calibration" onclick="startAccelCalibration()">AUTOCALIBRAR</button>
+        </div>
+        <div class="telemetry-values">
+          <div class="telemetry-value"><span>Aceleracao X/Y/Z</span><strong id="mpuAccel">--</strong></div>
+          <div class="telemetry-value"><span>Giroscopio X/Y/Z</span><strong id="mpuGyro">--</strong></div>
+          <div class="telemetry-value"><span>Magnetometro X/Y/Z</span><strong id="mpuMag">--</strong></div>
+          <div class="telemetry-value"><span>Atitude real filtrada R/P/Y</span><strong id="mpuAttitude">--</strong></div>
+          <div class="telemetry-value"><span>Comando Roll / Pitch</span><strong id="commandAttitude">0.0 / 0.0 deg</strong></div>
+          <div class="telemetry-value"><span>Throttle comandado</span><strong id="commandThrottle">1000 us</strong></div>
+          <div class="telemetry-value"><span>Norma / confianca do acelerometro</span><strong id="mpuAccelTrust">--</strong></div>
+          <div class="telemetry-value"><span>Temperatura</span><strong id="mpuTemp">--</strong></div>
+          <div class="telemetry-value"><span>Idade / Erros</span><strong id="mpuHealth">--</strong></div>
+          <div class="telemetry-value"><span>Calibracao</span><strong id="accelCalibrationStatus">Aguardando</strong></div>
+        </div>
+      </div>
+      <div class="telemetry-card">
+        <div class="section-title">
+          <span>BMP280 <span id="bmpStatus">Aguardando</span></span>
+          <button class="sensor-calibration" onclick="startAltimeterCalibration()">REFERENCIA AUTOMATICA</button>
+        </div>
+        <div class="telemetry-values">
+          <div class="telemetry-value"><span>Temperatura</span><strong id="bmpTemp">--</strong></div>
+          <div class="telemetry-value"><span>Pressao</span><strong id="bmpPressure">--</strong></div>
+          <div class="telemetry-value"><span>Altitude relativa</span><strong id="bmpAltitude">--</strong></div>
+          <div class="telemetry-value"><span>Idade / Erros</span><strong id="bmpHealth">--</strong></div>
+          <div class="telemetry-value"><span>Calibracao</span><strong id="altimeterCalibrationStatus">Aguardando</strong></div>
+        </div>
+      </div>
+      <div class="telemetry-card">
+        <div class="section-title">GPS NEO-6M <span id="gpsStatus">Aguardando</span></div>
+        <div class="telemetry-values">
+          <div class="telemetry-value"><span>Latitude / Longitude</span><strong id="gpsPosition">--</strong></div>
+          <div class="telemetry-value"><span>Altitude</span><strong id="gpsAltitude">--</strong></div>
+          <div class="telemetry-value"><span>Velocidade</span><strong id="gpsSpeed">--</strong></div>
+          <div class="telemetry-value"><span>Satelites / Fix</span><strong id="gpsFix">--</strong></div>
+          <div class="telemetry-value"><span>HDOP</span><strong id="gpsHdop">--</strong></div>
+          <div class="telemetry-value"><span>Idade / Erros</span><strong id="gpsHealth">--</strong></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel" id="tabCalibration">
+    <div class="section-title">Calibracao dos motores</div>
+    <div class="calibration-grid" id="calibrationContainer"></div>
+    <div class="calibration-actions">
+      <button class="btn-primary" onclick="saveCalibration()">APLICAR E SALVAR</button>
+      <button class="btn-reset" onclick="resetCalibration()">RESTAURAR PADRAO</button>
+    </div>
+    <div class="save-status" id="calibrationStatus"></div>
+    <div class="info-box">
+      <strong class="info-title">Ajuste de faixa</strong>
+      <div class="info-note">Trim soma ou subtrai microssegundos rapidamente. Start define onde cada motor comeca a responder. Max limita o topo da faixa para equilibrar motores mais fortes ou evitar instabilidade.</div>
+    </div>
+  </section>
+</div>
+
+<script>
+  const NUM_MOTORS = 4;
+  const gpios = [22, 12, 18, 14];
+  const HORIZON_ROLL_SIGN = -1;
+  const HORIZON_PITCH_SIGN = 1;
+  const HORIZON_SWAP_ROLL_PITCH = true;
+  const flightIds = [
+    'flightThrottle', 'rollSp', 'pitchSp', 'yawSp',
+    'rollState', 'pitchState', 'yawState',
+    'rollKp', 'rollKi', 'rollKd',
+    'pitchKp', 'pitchKi', 'pitchKd',
+    'yawKp', 'yawKi', 'yawKd'
+  ];
+  let filteredRollDeg = 0;
+  let filteredPitchDeg = 0;
+  let horizonRollZeroDeg = 0;
+  let horizonPitchZeroDeg = 0;
+  let attitudeCalibrationSamples = [];
+  let accelCalibrationActive = false;
+  let joysticksEnabled = false;
+  let joystickSendTimer = null;
+  let lastJoystickSendMs = 0;
+  let flightControlRequested = false;
+  let joystickRequestInFlight = false;
+  let joystickCommandPending = false;
+  let joystickLogLastMs = 0;
+
+  function joystickLog(message) {
+    const now = Date.now();
+    if ((now - joystickLogLastMs) < 120) return;
+    joystickLogLastMs = now;
+    console.log('[JOYSTICK] ' + message);
+  }
+
+  function setJoystickMessage(message) {
+    const status = document.getElementById('statusMsg');
+    status.textContent = message;
+    status.style.display = 'block';
+    status.style.color = '#f6ad55';
+  }
+
+  function showTab(tab) {
+    document.getElementById('tabJoysticks').classList.toggle('active', tab === 'joysticks');
+    document.getElementById('tabTest').classList.toggle('active', tab === 'test');
+    document.getElementById('tabFlight').classList.toggle('active', tab === 'flight');
+    document.getElementById('tabTelemetry').classList.toggle('active', tab === 'telemetry');
+    document.getElementById('tabCalibration').classList.toggle('active', tab === 'calibration');
+    document.getElementById('tabBtnJoysticks').classList.toggle('active', tab === 'joysticks');
+    document.getElementById('tabBtnTest').classList.toggle('active', tab === 'test');
+    document.getElementById('tabBtnFlight').classList.toggle('active', tab === 'flight');
+    document.getElementById('tabBtnTelemetry').classList.toggle('active', tab === 'telemetry');
+    document.getElementById('tabBtnCalibration').classList.toggle('active', tab === 'calibration');
+    if (tab === 'flight') fetchFlightStatus();
+    if (tab === 'telemetry') fetchTelemetry();
+    if (tab === 'calibration') fetchCalibration();
+  }
+
+  function getField(id) {
+    return document.getElementById(id).value;
+  }
+
+  function setField(id, value) {
+    document.getElementById(id).value = value;
+  }
+
+  function createMotorControls() {
+    const container = document.getElementById('motorsContainer');
+    for (let i = 0; i < NUM_MOTORS; i++) {
+      const div = document.createElement('div');
+      div.className = 'motor-control';
+      div.innerHTML =
+        '<div class="motor-label">' +
+          '<span class="motor-title">' +
+            '<span class="motor-name">Motor ' + (i + 1) + '</span>' +
+            '<span class="motor-meta">GPIO ' + gpios[i] + '</span>' +
+          '</span>' +
+          '<span class="motor-speed" id="speed' + i + '">0%</span>' +
+        '</div>' +
+        '<input type="range" id="slider' + i + '" min="0" max="100" value="0" style="--value:0%" ' +
+               'oninput="updateMotor(' + i + ', this.value)">';
+      container.appendChild(div);
+    }
+  }
+
+  function createCalibrationControls() {
+    const container = document.getElementById('calibrationContainer');
+    for (let i = 0; i < NUM_MOTORS; i++) {
+      const div = document.createElement('div');
+      div.className = 'calibration-card';
+      div.innerHTML =
+        '<div class="calibration-header">' +
+          '<span>Motor ' + (i + 1) + '</span>' +
+          '<span class="motor-meta">GPIO ' + gpios[i] + '</span>' +
+        '</div>' +
+        '<div class="trim-row">' +
+          '<input type="range" id="trim' + i + '" min="-100" max="100" step="1" value="0" style="--value:50%" oninput="setTrimVisual(' + i + ', this.value)">' +
+          '<span class="trim-value" id="trimValue' + i + '">0 us</span>' +
+        '</div>' +
+        '<div class="field-grid">' +
+          '<div class="field"><label for="start' + i + '">Start us</label><input id="start' + i + '" type="number" min="1000" max="1999" step="1" value="1100"></div>' +
+          '<div class="field"><label for="max' + i + '">Max us</label><input id="max' + i + '" type="number" min="1001" max="2000" step="1" value="2000"></div>' +
+          '<div class="field"><label for="output' + i + '">Saida atual</label><input id="output' + i + '" type="number" readonly value="1000"></div>' +
+        '</div>';
+      container.appendChild(div);
+    }
+  }
+
+  function setSliderVisual(motor, percentage) {
+    document.getElementById('speed' + motor).textContent = percentage + '%';
+    document.getElementById('slider' + motor).style.setProperty('--value', percentage + '%');
+  }
+
+  function setTrimVisual(motor, value) {
+    const trim = Number(value);
+    const pct = ((trim + 100) / 200) * 100;
+    document.getElementById('trimValue' + motor).textContent = trim + ' us';
+    document.getElementById('trim' + motor).style.setProperty('--value', pct + '%');
+  }
+
+  function fetchStatus() {
+    fetch('/status')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        for (let i = 0; i < NUM_MOTORS; i++) {
+          const pct = data.speeds[i];
+          document.getElementById('slider' + i).value = pct;
+          setSliderVisual(i, pct);
+          if (document.getElementById('output' + i)) {
+            document.getElementById('output' + i).value = data.outputs[i];
+          }
+        }
+        if (data.arming) {
+          document.getElementById('armingNotice').style.display = 'block';
+        } else {
+          document.getElementById('armingNotice').style.display = 'none';
+        }
+      })
+      .catch(function() {
+        const s = document.getElementById('statusMsg');
+        s.textContent = 'Sem resposta do ESP32';
+        s.style.color = '#e74c3c';
+      });
+  }
+
+  function updateMotor(motor, percentage) {
+    setSliderVisual(motor, percentage);
+    fetch('/setMotor?motor=' + motor + '&speed=' + percentage)
+      .then(function(r) {
+        if (r.status === 423) fetchStatus();
+      });
+  }
+
+  function stopAll() {
+    flightControlRequested = false;
+    fetch('/stopAll').then(function(r) {
+      if (r.status === 423) {
+        fetchStatus();
+        return;
+      }
+      for (let i = 0; i < NUM_MOTORS; i++) {
+        document.getElementById('slider' + i).value = 0;
+        setSliderVisual(i, 0);
+      }
+    });
+  }
+
+  function resetAll() { stopAll(); }
+
+  function buildFlightParams(apply, stabilize) {
+    const params = new URLSearchParams();
+    params.set('apply', apply ? '1' : '0');
+    params.set('stabilize', stabilize ? '1' : '0');
+    for (let i = 0; i < flightIds.length; i++) {
+      params.set(flightIds[i], getField(flightIds[i]));
+    }
+    params.set('throttle', getField('flightThrottle'));
+    return params.toString();
+  }
+
+  function sendFlight(apply) {
+    flightControlRequested = apply;
+    fetch('/setFlight?' + buildFlightParams(apply, apply))
+      .then(function(r) {
+        if (r.status === 423) {
+          fetchStatus();
+          return;
+        }
+        if (r.status === 409) {
+          flightControlRequested = false;
+          fetchFlightStatus();
+          return;
+        }
+        fetchFlightStatus();
+        if (apply) fetchStatus();
+      });
+  }
+
+  function scheduleJoystickCommand(sendImmediately) {
+    if (!joysticksEnabled) return;
+    const now = Date.now();
+    const elapsed = now - lastJoystickSendMs;
+    if (sendImmediately || elapsed >= 100) {
+      clearTimeout(joystickSendTimer);
+      lastJoystickSendMs = now;
+      sendJoystickRequest();
+      return;
+    }
+
+    clearTimeout(joystickSendTimer);
+    joystickSendTimer = setTimeout(function() {
+      lastJoystickSendMs = Date.now();
+      sendJoystickRequest();
+    }, 100 - elapsed);
+  }
+
+  function sendJoystickRequest() {
+    if (!joysticksEnabled) return;
+    if (joystickRequestInFlight) {
+      joystickCommandPending = true;
+      return;
+    }
+    joystickRequestInFlight = true;
+    const throttle = getField('flightThrottle');
+    const roll = getField('rollSp');
+    const pitch = getField('pitchSp');
+    joystickLog('enviando throttle=' + throttle + ' roll=' + roll + ' pitch=' + pitch);
+    fetch('/setFlight?' + buildFlightParams(true, false))
+      .then(function(response) {
+        joystickRequestInFlight = false;
+        joystickLog('resposta HTTP ' + response.status);
+        if (response.ok) {
+          flightControlRequested = true;
+          setJoystickMessage('Comando do joystick aplicado');
+          if (joystickCommandPending) {
+            joystickCommandPending = false;
+            sendJoystickRequest();
+          }
+          return;
+        }
+        if (response.status === 409 || response.status === 503) {
+          flightControlRequested = false;
+          joystickCommandPending = false;
+          response.text().then(function(message) {
+            setJoystickMessage('Comando nao aplicado: ' + message);
+          });
+          console.log('[JOYSTICK] permanece habilitado; envio pausado por resposta HTTP ' + response.status);
+          fetchFlightStatus();
+        }
+      })
+      .catch(function(error) {
+        joystickRequestInFlight = false;
+        joystickCommandPending = false;
+        joystickLog('falha de comunicacao: ' + error.message);
+        setJoystickMessage('Falha ao enviar comando do joystick');
+      });
+  }
+
+  function prepareJoysticks(button) {
+    resetPowerJoystick();
+    setField('rollSp', 0);
+    setField('pitchSp', 0);
+    fetch('/stopAll')
+      .then(function(response) {
+        if (!response.ok) throw new Error('Falha ao colocar motores no minimo');
+        joysticksEnabled = true;
+        flightControlRequested = false;
+        button.textContent = 'JOYSTICKS HABILITADOS';
+        button.className = 'joystick-enabled';
+        return fetch('/setFlight?' + buildFlightParams(true, false));
+      })
+      .then(function(response) {
+        if (!response.ok) {
+          return response.text().then(function(message) { throw new Error(message); });
+        }
+        flightControlRequested = true;
+        setJoystickMessage('Joysticks prontos em modo manual. Motores no minimo.');
+        console.log('[JOYSTICK] preparados; comando manual neutro aceito');
+      })
+      .catch(function(error) {
+        flightControlRequested = false;
+        setJoystickMessage('Joysticks habilitados, mas comando bloqueado: ' + error.message);
+        console.log('[JOYSTICK] preparacao bloqueada: ' + error.message);
+      });
+  }
+
+  function toggleJoysticks() {
+    const enabling = !joysticksEnabled;
+    const button = document.getElementById('joystickEnableButton');
+    if (enabling) {
+      prepareJoysticks(button);
+    } else {
+      joysticksEnabled = false;
+      button.textContent = 'HABILITAR JOYSTICKS';
+      button.className = 'btn-primary';
+      clearTimeout(joystickSendTimer);
+      resetPowerJoystick();
+      stopAll();
+    }
+  }
+
+  function setPowerJoystickFromThrottle(throttleUs) {
+    const throttle = Math.max(1000, Math.min(2000, Number(throttleUs) || 1000));
+    const y = (1500 - throttle) / 500 * 0.82;
+    const stick = document.getElementById('powerJoystick').querySelector('.joystick-stick');
+    stick.style.left = '50%';
+    stick.style.top = (50 + y * 50) + '%';
+    setField('flightThrottle', throttle);
+    telemetryText('powerJoystickValue', 'Throttle: ' + throttle + ' us');
+  }
+
+  function resetPowerJoystick() {
+    setPowerJoystickFromThrottle(1000);
+  }
+
+  function emergencyJoystickStop() {
+    joysticksEnabled = false;
+    clearTimeout(joystickSendTimer);
+    document.getElementById('joystickEnableButton').textContent = 'HABILITAR JOYSTICKS';
+    document.getElementById('joystickEnableButton').className = 'btn-primary';
+    resetPowerJoystick();
+    stopAll();
+  }
+
+  function setupJoystick(id, mode) {
+    const base = document.getElementById(id);
+    const stick = base.querySelector('.joystick-stick');
+    let active = false;
+
+    function update(clientX, clientY) {
+      const rect = base.getBoundingClientRect();
+      let x = (clientX - rect.left) / rect.width * 2 - 1;
+      let y = (clientY - rect.top) / rect.height * 2 - 1;
+
+      if (mode === 'power') {
+        x = 0;
+        y = Math.max(-0.82, Math.min(0.82, y));
+        const throttle = Math.round(1500 - y / 0.82 * 500);
+        setField('flightThrottle', Math.max(1000, Math.min(2000, throttle)));
+        telemetryText('powerJoystickValue', 'Throttle: ' + getField('flightThrottle') + ' us');
+      } else {
+        const magnitude = Math.sqrt(x * x + y * y);
+        if (magnitude > 0.82) {
+          x *= 0.82 / magnitude;
+          y *= 0.82 / magnitude;
+        }
+        const roll = Math.max(-35, Math.min(35, x / 0.82 * 35));
+        const pitch = Math.max(-35, Math.min(35, -y / 0.82 * 35));
+        setField('rollSp', roll.toFixed(1));
+        setField('pitchSp', pitch.toFixed(1));
+        telemetryText('directionJoystickValue', 'Roll: ' + roll.toFixed(1) + ' / Pitch: ' + pitch.toFixed(1));
+      }
+
+      stick.style.left = (50 + x * 50) + '%';
+      stick.style.top = (50 + y * 50) + '%';
+      scheduleJoystickCommand();
+    }
+
+    function beginInput(clientX, clientY, pointerId) {
+      if (!joysticksEnabled) {
+        setJoystickMessage('Habilite os joysticks antes de comandar');
+        console.log('[JOYSTICK] toque ignorado: joysticks desabilitados');
+        return;
+      }
+      active = true;
+      if ((pointerId !== null) && base.setPointerCapture) {
+        base.setPointerCapture(pointerId);
+      }
+      joystickLog(mode + ' entrada capturada');
+      update(clientX, clientY);
+    }
+
+    function endInput() {
+      active = false;
+      joystickLog(mode + ' entrada finalizada');
+      if (mode === 'direction') {
+        stick.style.left = '50%';
+        stick.style.top = '50%';
+        setField('rollSp', 0);
+        setField('pitchSp', 0);
+        telemetryText('directionJoystickValue', 'Roll: 0 / Pitch: 0');
+      }
+      scheduleJoystickCommand(true);
+    }
+
+    base.addEventListener('pointerdown', function(event) {
+      event.preventDefault();
+      beginInput(event.clientX, event.clientY, event.pointerId);
+    });
+    base.addEventListener('pointermove', function(event) {
+      if (active) {
+        event.preventDefault();
+        update(event.clientX, event.clientY);
+      }
+    });
+    base.addEventListener('pointerup', function() {
+      endInput();
+    });
+    base.addEventListener('pointercancel', function() {
+      joystickLog(mode + ' pointercancel capturado');
+      endInput();
+    });
+
+    if (!window.PointerEvent) {
+      base.addEventListener('touchstart', function(event) {
+        event.preventDefault();
+        const touch = event.touches[0];
+        beginInput(touch.clientX, touch.clientY, null);
+      }, {passive: false});
+      base.addEventListener('touchmove', function(event) {
+        if (!active) return;
+        event.preventDefault();
+        const touch = event.touches[0];
+        update(touch.clientX, touch.clientY);
+      }, {passive: false});
+      base.addEventListener('touchend', function(event) {
+        event.preventDefault();
+        endInput();
+      }, {passive: false});
+      base.addEventListener('mousedown', function(event) {
+        event.preventDefault();
+        beginInput(event.clientX, event.clientY, null);
+      });
+      window.addEventListener('mousemove', function(event) {
+        if (active) update(event.clientX, event.clientY);
+      });
+      window.addEventListener('mouseup', function() {
+        if (active) endInput();
+      });
+    }
+
+    if (mode === 'power') stick.style.top = '91%';
+  }
+
+  function resetPid() {
+    fetch('/resetPid').then(function() {
+      fetchFlightStatus();
+    });
+  }
+
+  function updateFlightOutputs(motors) {
+    document.getElementById('flightM1').textContent = motors[0];
+    document.getElementById('flightM2').textContent = motors[1];
+    document.getElementById('flightM3').textContent = motors[2];
+    document.getElementById('flightM4').textContent = motors[3];
+  }
+
+  function fetchFlightStatus() {
+    fetch('/flightStatus')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        setField('flightThrottle', data.setpoint.throttle);
+        setPowerJoystickFromThrottle(data.setpoint.throttle);
+        setField('rollSp', data.setpoint.roll);
+        setField('pitchSp', data.setpoint.pitch);
+        setField('yawSp', data.setpoint.yaw);
+        setField('rollState', data.state.roll);
+        setField('pitchState', data.state.pitch);
+        setField('yawState', data.state.yaw);
+        setField('rollKp', data.gains.roll[0]);
+        setField('rollKi', data.gains.roll[1]);
+        setField('rollKd', data.gains.roll[2]);
+        setField('pitchKp', data.gains.pitch[0]);
+        setField('pitchKi', data.gains.pitch[1]);
+        setField('pitchKd', data.gains.pitch[2]);
+        setField('yawKp', data.gains.yaw[0]);
+        setField('yawKi', data.gains.yaw[1]);
+        setField('yawKd', data.gains.yaw[2]);
+        updateFlightOutputs(data.motors);
+        telemetryText('flightControlMode', data.controlEnabled ? 'ATITUDE + TAXA' : 'MANUAL');
+        telemetryText('flightFailsafe', data.failsafe);
+        telemetryText('flightRates',
+          Number(data.rate.roll).toFixed(0) + ' / ' + Number(data.rate.pitch).toFixed(0));
+        telemetryText('flightNavigationReady',
+          (data.altitudeHoldReady ? 'OK' : '--') + ' / ' + (data.gpsControlReady ? 'OK' : '--'));
+      });
+  }
+
+  function sendFlightHeartbeat() {
+    if (!flightControlRequested) return;
+    sendJoystickRequest();
+  }
+
+  function fetchCalibration() {
+    fetch('/calibration')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        for (let i = 0; i < NUM_MOTORS; i++) {
+          document.getElementById('start' + i).value = data.start[i];
+          document.getElementById('max' + i).value = data.max[i];
+          document.getElementById('trim' + i).value = data.trim[i];
+          document.getElementById('output' + i).value = data.outputs[i];
+          setTrimVisual(i, data.trim[i]);
+        }
+      });
+  }
+
+  function buildCalibrationParams() {
+    const params = new URLSearchParams();
+    for (let i = 0; i < NUM_MOTORS; i++) {
+      params.set('start' + i, getField('start' + i));
+      params.set('max' + i, getField('max' + i));
+      params.set('trim' + i, getField('trim' + i));
+    }
+    return params.toString();
+  }
+
+  function saveCalibration() {
+    fetch('/setCalibration?' + buildCalibrationParams())
+      .then(function(r) {
+        if (!r.ok) throw new Error('Falha ao salvar');
+        return r.json();
+      })
+      .then(function() {
+        document.getElementById('calibrationStatus').textContent = 'Calibracao salva na memoria.';
+        fetchCalibration();
+        fetchStatus();
+      })
+      .catch(function() {
+        document.getElementById('calibrationStatus').textContent = 'Nao foi possivel salvar a calibracao.';
+      });
+  }
+
+  function resetCalibration() {
+    fetch('/resetCalibration')
+      .then(function(r) {
+        if (!r.ok) throw new Error('Falha ao restaurar');
+        return r.json();
+      })
+      .then(function() {
+        document.getElementById('calibrationStatus').textContent = 'Padrao restaurado e salvo.';
+        fetchCalibration();
+        fetchStatus();
+      });
+  }
+
+  function telemetryText(id, value) {
+    document.getElementById(id).textContent = value;
+  }
+
+  function vectorText(values, decimals, unit) {
+    return values.map(function(value) { return Number(value).toFixed(decimals); }).join(' / ') + ' ' + unit;
+  }
+
+  function realAttitude(mpu) {
+    if (mpu.realAttitude) {
+      return {
+        roll: Number(mpu.realAttitude.roll),
+        pitch: Number(mpu.realAttitude.pitch),
+        yaw: Number(mpu.realAttitude.yaw)
+      };
+    }
+    return {roll: Number(mpu.attitudeDeg[0]), pitch: Number(mpu.attitudeDeg[1]), yaw: 0};
+  }
+
+  function horizonAttitude(mpu) {
+    const attitude = realAttitude(mpu);
+    if (HORIZON_SWAP_ROLL_PITCH) {
+      return {roll: attitude.pitch, pitch: attitude.roll, yaw: attitude.yaw};
+    }
+    return attitude;
+  }
+
+  function startAccelCalibration() {
+    attitudeCalibrationSamples = [];
+    accelCalibrationActive = true;
+    filteredRollDeg = 0;
+    filteredPitchDeg = 0;
+    document.getElementById('attitudeWorld').style.transform = 'translateY(0px) rotate(0deg)';
+    const autoLevel = document.getElementById('autoLevelStatus');
+    autoLevel.textContent = 'AUTONIVELANDO: MANTENHA IMOVEL';
+    autoLevel.className = 'auto-level-status';
+    telemetryText('accelCalibrationStatus', 'Mantenha nivelado e imovel: 0%');
+  }
+
+  function startAltimeterCalibration() {
+    telemetryText('altimeterCalibrationStatus', 'A referencia relativa e definida automaticamente ao iniciar');
+  }
+
+  function processAccelCalibration(mpu) {
+    if (!accelCalibrationActive || !mpu.online || !mpu.valid) return;
+    if (!mpu.calibrationComplete) {
+      attitudeCalibrationSamples = [];
+      document.getElementById('autoLevelStatus').textContent =
+        'AUTONIVELANDO: CALIBRANDO SENSOR ' + mpu.calibrationProgress + '%';
+      telemetryText('accelCalibrationStatus', 'Calibrando giroscopio: ' + mpu.calibrationProgress + '%');
+      return;
+    }
+    if (!mpu.accelCorrectionUsed) {
+      attitudeCalibrationSamples = [];
+      document.getElementById('autoLevelStatus').textContent = 'AUTONIVELANDO: ACELERACAO INSTAVEL';
+      telemetryText('accelCalibrationStatus', 'Aguardando aceleracao proxima de 1g');
+      return;
+    }
+    const gyroMovement = Math.abs(Number(mpu.gyroDps[0])) +
+      Math.abs(Number(mpu.gyroDps[1])) + Math.abs(Number(mpu.gyroDps[2]));
+    if (gyroMovement > 2) {
+      attitudeCalibrationSamples = [];
+      document.getElementById('autoLevelStatus').textContent = 'AUTONIVELANDO: MOVIMENTO DETECTADO';
+      telemetryText('accelCalibrationStatus', 'Movimento detectado. Reiniciando...');
+      return;
+    }
+    const attitude = horizonAttitude(mpu);
+    attitudeCalibrationSamples.push([attitude.roll, attitude.pitch]);
+    const calibrationProgress = Math.min(100, Math.round(attitudeCalibrationSamples.length / 40 * 100));
+    document.getElementById('autoLevelStatus').textContent = 'AUTONIVELANDO: ' + calibrationProgress + '%';
+    telemetryText('accelCalibrationStatus', 'Mantenha nivelado e imovel: ' + calibrationProgress + '%');
+    if (attitudeCalibrationSamples.length < 40) return;
+
+    const medianAxis = function(axis) {
+      const values = attitudeCalibrationSamples.map(function(sample) { return sample[axis]; });
+      values.sort(function(a, b) { return a - b; });
+      return (values[19] + values[20]) * 0.5;
+    };
+    horizonRollZeroDeg = medianAxis(0);
+    horizonPitchZeroDeg = medianAxis(1);
+    filteredRollDeg = 0;
+    filteredPitchDeg = 0;
+    accelCalibrationActive = false;
+    const autoLevel = document.getElementById('autoLevelStatus');
+    autoLevel.textContent = 'HORIZONTE NIVELADO';
+    autoLevel.className = 'auto-level-status ready';
+    telemetryText('accelCalibrationStatus', 'Nivel zero calibrado');
+  }
+
+  function processAltimeterCalibration(bmp) {
+    if (!bmp.online || !bmp.valid) return;
+    if (!bmp.referenceReady) {
+      telemetryText('altimeterCalibrationStatus', 'Estabilizando referencia: ' + bmp.referenceProgress + '%');
+      return;
+    }
+    telemetryText('altimeterCalibrationStatus', bmp.altitudeSampleRejected ?
+      'Referencia pronta / pico rejeitado' : 'Referencia pronta / altitude filtrada');
+  }
+
+  function correctedAccel(mpu) {
+    return mpu.accelG.map(Number);
+  }
+
+  function updateHorizon(mpu) {
+    if (!mpu.online || !mpu.valid) return;
+
+    // Mostra a atitude imediatamente; o auto-nivelamento refina o zero em
+    // segundo plano, sem bloquear o horizonte.
+    const attitude = horizonAttitude(mpu);
+    const roll = attitude.roll - horizonRollZeroDeg;
+    const pitch = attitude.pitch - horizonPitchZeroDeg;
+    const angularRate = Math.max(Math.abs(Number(mpu.gyroDps[0])), Math.abs(Number(mpu.gyroDps[1])));
+    const moving = angularRate >= 4;
+    const response = moving ? 0.82 : 0.28;
+    const vibrationDeadbandDeg = moving ? 0.15 : 0.9;
+    const rollTarget = Math.abs(roll) < vibrationDeadbandDeg ? 0 : roll;
+    const pitchTarget = Math.abs(pitch) < vibrationDeadbandDeg ? 0 : pitch;
+
+    filteredRollDeg += (rollTarget - filteredRollDeg) * response;
+    filteredPitchDeg += (pitchTarget - filteredPitchDeg) * response;
+    if (!moving && Math.abs(roll) < 0.6 && Math.abs(filteredRollDeg) < 1.0) filteredRollDeg = 0;
+    if (!moving && Math.abs(pitch) < 0.6 && Math.abs(filteredPitchDeg) < 1.0) filteredPitchDeg = 0;
+    const pitchPixels = Math.max(-120, Math.min(120, filteredPitchDeg * 3));
+
+    document.getElementById('attitudeWorld').style.transform =
+      'translateY(' + (HORIZON_PITCH_SIGN * pitchPixels) + 'px) rotate(' +
+      (HORIZON_ROLL_SIGN * filteredRollDeg) + 'deg)';
+  }
+
+  function fetchTelemetry() {
+    fetch('/sensors')
+      .then(function(r) {
+        if (!r.ok) throw new Error('Falha ao ler telemetria');
+        return r.json();
+      })
+      .then(function(data) {
+        const mpu = data.mpu9259;
+        processAccelCalibration(mpu);
+        const accel = correctedAccel(mpu);
+        const attitude = realAttitude(mpu);
+        telemetryText('mpuStatus', mpu.online && mpu.valid ? 'ONLINE' : 'INDISPONIVEL');
+        telemetryText('mpuAccel', vectorText(accel, 3, 'g'));
+        telemetryText('mpuGyro', vectorText(mpu.gyroDps, 2, 'dps'));
+        telemetryText('mpuMag', mpu.magnetometerAvailable ? vectorText(mpu.magUt, 2, 'uT') : 'Indisponivel');
+        telemetryText('mpuAttitude', vectorText([attitude.roll, attitude.pitch, attitude.yaw], 2, 'deg'));
+        telemetryText('commandAttitude',
+          Number(getField('rollSp')).toFixed(1) + ' / ' + Number(getField('pitchSp')).toFixed(1) + ' deg');
+        telemetryText('commandThrottle', getField('flightThrottle') + ' us');
+        telemetryText('mpuAccelTrust', Number(mpu.accelNormG).toFixed(3) + ' g / ' +
+          (mpu.accelCorrectionUsed ? 'CONFIAVEL' : 'IGNORADO'));
+        telemetryText('mpuTemp', Number(mpu.temperatureC).toFixed(1) + ' C');
+        telemetryText('mpuHealth', mpu.ageMs + ' ms / ' + mpu.errors);
+        if (!accelCalibrationActive) {
+          const fusionStatus = mpu.accelSampleRejected ? 'Pico rejeitado (' + mpu.rejectedSamples + ')' :
+            (mpu.accelCorrectionUsed ? 'Fusao ativa' : 'Somente giroscopio');
+          telemetryText('accelCalibrationStatus',
+            mpu.calibrationComplete ? 'Sensor calibrado / ' + fusionStatus :
+              'Calibrando sensor: ' + mpu.calibrationProgress + '% / ' + fusionStatus);
+        }
+        updateHorizon(mpu);
+        if (mpu.magnetometerAvailable) {
+          let heading = attitude.yaw;
+          if (heading < 0) heading += 360;
+          telemetryText('horizonCompass', heading.toFixed(0) + ' deg');
+          document.getElementById('compassNeedle').style.transform =
+            'translateX(-50%) rotate(' + heading + 'deg)';
+        } else {
+          telemetryText('horizonCompass', '---');
+        }
+
+        const bmp = data.bmp280;
+        processAltimeterCalibration(bmp);
+        telemetryText('bmpStatus', bmp.online && bmp.valid ? 'ONLINE' : 'INDISPONIVEL');
+        telemetryText('bmpTemp', Number(bmp.temperatureC).toFixed(1) + ' C');
+        telemetryText('bmpPressure', Number(bmp.pressureHpa).toFixed(2) + ' hPa');
+        const relativeAltitudeM = bmp.referenceReady ? Number(bmp.altitudeM) : 0;
+        telemetryText('bmpAltitude', relativeAltitudeM.toFixed(2) + ' m');
+        telemetryText('bmpHealth', bmp.ageMs + ' ms / ' + bmp.errors);
+        telemetryText('horizonAltitude', bmp.referenceReady ? relativeAltitudeM.toFixed(2) + ' m' : 'CAL');
+
+        const gps = data.gps;
+        telemetryText('gpsStatus', gps.valid ? 'FIX VALIDO' : (gps.signalLost ? 'SEM SINAL' : 'BUSCANDO FIX'));
+        telemetryText('gpsPosition', Number(gps.latitude).toFixed(6) + ' / ' + Number(gps.longitude).toFixed(6));
+        telemetryText('gpsAltitude', Number(gps.altitudeM).toFixed(1) + ' m');
+        telemetryText('gpsSpeed', Number(gps.speedKmh).toFixed(1) + ' km/h');
+        telemetryText('gpsFix', gps.satellites + ' / ' + gps.fixQuality);
+        telemetryText('gpsHdop', Number(gps.hdop).toFixed(2));
+        telemetryText('gpsHealth', gps.ageMs + ' ms / ' + gps.checksumErrors);
+      })
+      .catch(function() {
+        telemetryText('mpuStatus', 'SEM RESPOSTA');
+        telemetryText('bmpStatus', 'SEM RESPOSTA');
+        telemetryText('gpsStatus', 'SEM RESPOSTA');
+        telemetryText('horizonCompass', '---');
+        telemetryText('horizonAltitude', '-- m');
+      });
+  }
+
+  createMotorControls();
+  createCalibrationControls();
+  setupJoystick('powerJoystick', 'power');
+  setupJoystick('directionJoystick', 'direction');
+  startAccelCalibration();
+  startAltimeterCalibration();
+  fetchStatus();
+  fetchFlightStatus();
+  fetchCalibration();
+  fetchTelemetry();
+  setInterval(fetchStatus, 2000);
+  setInterval(fetchTelemetry, 250);
+  setInterval(sendFlightHeartbeat, 250);
+</script>
+</body>
+</html>

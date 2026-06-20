@@ -1,0 +1,10 @@
+# Valores padrao do projeto (aplicados em "idf.py build" se nao houver sdkconfig).
+# Tick de 1 kHz: pdMS_TO_TICKS preciso para o laco de controle de 20 ms.
+CONFIG_FREERTOS_HZ=1000
+
+# CPU em 240 MHz para folga de processamento no laco de controle e na fusao.
+CONFIG_ESP32_DEFAULT_CPU_FREQ_240=y
+CONFIG_ESP32_DEFAULT_CPU_FREQ_MHZ=240
+
+# Stack da tarefa principal (app_main).
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=4096
