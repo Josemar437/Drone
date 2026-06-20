@@ -1,0 +1,55 @@
+name: Documentacao (Doxygen) -> GitHub Pages
+
+# Gera a documentacao Doxygen e publica no GitHub Pages a cada push na main.
+# A pasta docs/ permanece fora do git (artefato regeneravel).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Garante um unico deploy por vez, sem cancelar um em andamento.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar Doxygen e Graphviz
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen graphviz
+
+      - name: Gerar documentacao
+        run: |
+          mkdir -p docs/doxygen
+          doxygen Doxyfile
+
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload do artefato (HTML)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/doxygen/html
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy para o GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
