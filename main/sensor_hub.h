@@ -84,6 +84,7 @@ size_t sensor_hub_to_json(sensor_hub_t *self, char *out, size_t cap);
 
 /**
  * @brief Copia o ultimo snapshot da IMU de forma atomica.
+ * @param self Instancia.
  * @param data Saida.
  * @return data->valid (true se o snapshot e confiavel).
  *

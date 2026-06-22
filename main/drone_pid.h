@@ -68,6 +68,14 @@ typedef struct
     int32_t m4; /**< Traseira-esquerda. */
 } quad_motor_output_t;
 
+/** @brief Resultado de mixagem com diagnostico de saturacao. */
+typedef struct
+{
+    quad_motor_output_t output;     /**< Pulsos finais, ja saturados. */
+    bool saturated;                 /**< true se algum motor exigiu desaturacao/clamp. */
+    float collective_adjust_us;     /**< Deslocamento comum aplicado ao coletivo. */
+} quad_mix_result_t;
+
 /** @brief Velocidade angular medida pelo giroscopio (graus/s). */
 typedef struct
 {
@@ -98,7 +106,8 @@ typedef enum
     FLIGHT_FAILSAFE_MPU_NOT_CALIBRATED,   /**< IMU ainda nao calibrada. */
     FLIGHT_FAILSAFE_EXCESSIVE_TILT,       /**< Inclinacao acima do seguro. */
     FLIGHT_FAILSAFE_MANUAL_OVERRIDE,      /**< Comando manual assumiu o controle. */
-    FLIGHT_FAILSAFE_EMERGENCY_STOP        /**< Parada de emergencia (operador). */
+    FLIGHT_FAILSAFE_EMERGENCY_STOP,       /**< Parada de emergencia (operador). */
+    FLIGHT_FAILSAFE_CONTROLLER_TIMEOUT    /**< Timeout do mutex da cascata (compute nao concluiu). */
 } flight_failsafe_reason_t;
 
 /**
@@ -134,6 +143,7 @@ void pid_set_output_limits(pid_controller_t *pid, float min_output, float max_ou
 
 /**
  * @brief Define o limite (simetrico) do termo integral.
+ * @param pid   Instancia do PID.
  * @param limit Valor maximo absoluto; o sinal e ignorado (usa-se |limit|).
  */
 void pid_set_integral_limit(pid_controller_t *pid, float limit);
@@ -228,6 +238,20 @@ quad_motor_output_t quad_pid_mix_x(float throttle_us, const axis_correction_t *c
                                    int32_t esc_min, int32_t esc_max);
 
 /**
+ * @brief Mixagem X com desaturacao coletiva.
+ *
+ * Antes do clamp final, desloca todos os motores pelo mesmo valor para manter
+ * as diferencas relativas de roll/pitch/yaw quando o coletivo empurra um motor
+ * para fora da faixa fisica. Isso preserva autoridade de atitude melhor que
+ * truncar cada motor isoladamente, principalmente em decolagem e hover.
+ *
+ * @return Saida final e diagnostico de saturacao para telemetria/anti-windup.
+ */
+quad_mix_result_t quad_pid_mix_x_desaturated(float throttle_us,
+                                             const axis_correction_t *correction,
+                                             int32_t esc_min, int32_t esc_max);
+
+/**
  * @brief Controle em cascata atitude->velocidade angular (modo estabilizado).
  *
  * Malha externa (P): erro de angulo * Kp -> setpoint de velocidade angular,
@@ -291,6 +315,19 @@ axis_correction_t attitude_rate_compute(attitude_rate_controller_t *ctrl,
                                         const flight_state_t *attitude,
                                         const angular_rate_state_t *rate,
                                         float dt_seconds);
+
+/**
+ * @brief Executa a cascata com yaw em modo taxa angular direta.
+ *
+ * Roll/pitch continuam em malha externa de atitude. O yaw recebe diretamente o
+ * setpoint de velocidade angular ja limitado/suavizado pela logica de voo.
+ */
+axis_correction_t attitude_rate_compute_yaw_rate(attitude_rate_controller_t *ctrl,
+                                                const flight_setpoint_t *setpoint,
+                                                const flight_state_t *attitude,
+                                                const angular_rate_state_t *rate,
+                                                float yaw_rate_setpoint_dps,
+                                                float dt_seconds);
 
 /**
  * @brief Retorna o ultimo setpoint de velocidade angular calculado.

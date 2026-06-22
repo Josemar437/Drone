@@ -189,6 +189,132 @@ quad_motor_output_t quad_pid_mix_x(float throttle_us, const axis_correction_t *c
     return output;
 }
 
+/**
+ * @brief Maior fator em [0,1] que mantem (base + fator*delta) dentro de [min,max].
+ *
+ * Usado para escalar a parcela de yaw a folga disponivel em cada motor: o yaw e
+ * o eixo de menor prioridade, entao cede primeiro quando falta faixa. Assume que
+ * 'base' (parcela de coletivo+roll+pitch) ja esta dentro de [min,max].
+ */
+static float yaw_fit_scale(float base, float delta, float min_us, float max_us)
+{
+    float scale = 1.0f;
+    if (delta > 0.0f)
+    {
+        const float headroom = max_us - base; /* >= 0: base ja cabe */
+        if (headroom <= 0.0f)        { scale = 0.0f; }
+        else if (delta > headroom)   { scale = headroom / delta; }
+        else                         { scale = 1.0f; }
+    }
+    else if (delta < 0.0f)
+    {
+        const float headroom = min_us - base; /* <= 0: base ja cabe */
+        if (headroom >= 0.0f)        { scale = 0.0f; }
+        else if (delta < headroom)   { scale = headroom / delta; } /* dois negativos -> [0,1) */
+        else                         { scale = 1.0f; }
+    }
+    else
+    {
+        scale = 1.0f;
+    }
+    return scale;
+}
+
+/**
+ * @brief Mixagem em X com desaturacao priorizada (roll/pitch > coletivo > yaw).
+ *
+ * Em condicao normal (sem saturacao) o resultado e identico a ::quad_pid_mix_x.
+ * Quando o comando nao cabe na faixa do ESC, a prioridade preserva a autoridade
+ * de atitude mais critica para a estabilidade:
+ *   1. Se o proprio diferencial de roll/pitch excede a faixa total, escala
+ *      roll/pitch juntos (limite fisico; mantem a direcao do torque).
+ *   2. Desloca o coletivo comum (air-mode) para encaixar roll/pitch sem perder o
+ *      diferencial.
+ *   3. Adiciona o yaw escalado a folga restante (yaw e o primeiro a ceder).
+ * O clamp final e apenas rede de seguranca; 'saturated' sinaliza qualquer perda
+ * de autoridade e 'collective_adjust_us' reporta o deslocamento de coletivo.
+ */
+quad_mix_result_t quad_pid_mix_x_desaturated(float throttle_us,
+                                             const axis_correction_t *correction,
+                                             int32_t esc_min, int32_t esc_max)
+{
+    quad_mix_result_t result;
+    const float min_us = (float)esc_min;
+    const float max_us = (float)esc_max;
+    const float range = max_us - min_us;
+    const float yaw = correction->yaw;
+    /* Parte de coletivo+roll+pitch (sem yaw). Sinais de roll/pitch como na X. */
+    float b1 = throttle_us + correction->pitch + correction->roll;
+    float b2 = throttle_us + correction->pitch - correction->roll;
+    float b3 = throttle_us - correction->pitch - correction->roll;
+    float b4 = throttle_us - correction->pitch + correction->roll;
+    float bmax;
+    float bmin;
+    float shift = 0.0f;
+    float yaw_scale;
+    float yd;
+
+    result.saturated = false;
+
+    /* 1) Diferencial de roll/pitch maior que a faixa total: escala proporcional. */
+    bmax = b1; if (b2 > bmax) { bmax = b2; } if (b3 > bmax) { bmax = b3; } if (b4 > bmax) { bmax = b4; }
+    bmin = b1; if (b2 < bmin) { bmin = b2; } if (b3 < bmin) { bmin = b3; } if (b4 < bmin) { bmin = b4; }
+    if ((bmax - bmin) > range)
+    {
+        const float scale = range / (bmax - bmin);
+        b1 = throttle_us + ((b1 - throttle_us) * scale);
+        b2 = throttle_us + ((b2 - throttle_us) * scale);
+        b3 = throttle_us + ((b3 - throttle_us) * scale);
+        b4 = throttle_us + ((b4 - throttle_us) * scale);
+        result.saturated = true;
+    }
+
+    /* 2) Desloca o coletivo para encaixar roll/pitch em [min,max] (air-mode). */
+    bmax = b1; if (b2 > bmax) { bmax = b2; } if (b3 > bmax) { bmax = b3; } if (b4 > bmax) { bmax = b4; }
+    bmin = b1; if (b2 < bmin) { bmin = b2; } if (b3 < bmin) { bmin = b3; } if (b4 < bmin) { bmin = b4; }
+    if (bmax > max_us)
+    {
+        shift = max_us - bmax;
+    }
+    if ((bmin + shift) < min_us)
+    {
+        shift = min_us - bmin;
+    }
+    if (shift != 0.0f)
+    {
+        b1 += shift;
+        b2 += shift;
+        b3 += shift;
+        b4 += shift;
+        result.saturated = true;
+    }
+
+    /* 3) Yaw escalado a folga restante (sinais m1-,m2+,m3-,m4+). */
+    yaw_scale = yaw_fit_scale(b1, -yaw, min_us, max_us);
+    {
+        float s;
+        s = yaw_fit_scale(b2, yaw, min_us, max_us);  if (s < yaw_scale) { yaw_scale = s; }
+        s = yaw_fit_scale(b3, -yaw, min_us, max_us); if (s < yaw_scale) { yaw_scale = s; }
+        s = yaw_fit_scale(b4, yaw, min_us, max_us);  if (s < yaw_scale) { yaw_scale = s; }
+    }
+    if (yaw_scale < 1.0f)
+    {
+        result.saturated = true;
+    }
+    yd = yaw * yaw_scale;
+    b1 -= yd;
+    b2 += yd;
+    b3 -= yd;
+    b4 += yd;
+
+    result.output.m1 = clamp_i32((int32_t)b1, esc_min, esc_max);
+    result.output.m2 = clamp_i32((int32_t)b2, esc_min, esc_max);
+    result.output.m3 = clamp_i32((int32_t)b3, esc_min, esc_max);
+    result.output.m4 = clamp_i32((int32_t)b4, esc_min, esc_max);
+    result.collective_adjust_us = shift;
+    return result;
+}
+
 /* ===== AttitudeRateController ===== */
 void attitude_rate_init(attitude_rate_controller_t *ctrl)
 {
@@ -253,6 +379,30 @@ axis_correction_t attitude_rate_compute(attitude_rate_controller_t *ctrl,
         clamp_f(pitch_error * ctrl->pitch_attitude_kp, -MAX_ROLL_PITCH_RATE_DPS, MAX_ROLL_PITCH_RATE_DPS);
     ctrl->rate_setpoint.yaw_dps =
         clamp_f(yaw_error * ctrl->yaw_attitude_kp, -MAX_YAW_RATE_DPS, MAX_YAW_RATE_DPS);
+
+    correction.roll = pid_update(&ctrl->roll_rate_pid, ctrl->rate_setpoint.roll_dps, rate->roll_dps, dt_seconds);
+    correction.pitch = pid_update(&ctrl->pitch_rate_pid, ctrl->rate_setpoint.pitch_dps, rate->pitch_dps, dt_seconds);
+    correction.yaw = pid_update(&ctrl->yaw_rate_pid, ctrl->rate_setpoint.yaw_dps, rate->yaw_dps, dt_seconds);
+    return correction;
+}
+
+axis_correction_t attitude_rate_compute_yaw_rate(attitude_rate_controller_t *ctrl,
+                                                const flight_setpoint_t *setpoint,
+                                                const flight_state_t *attitude,
+                                                const angular_rate_state_t *rate,
+                                                float yaw_rate_setpoint_dps,
+                                                float dt_seconds)
+{
+    axis_correction_t correction;
+    const float roll_error = setpoint->roll_deg - attitude->roll_deg;
+    const float pitch_error = setpoint->pitch_deg - attitude->pitch_deg;
+
+    ctrl->rate_setpoint.roll_dps =
+        clamp_f(roll_error * ctrl->roll_attitude_kp, -MAX_ROLL_PITCH_RATE_DPS, MAX_ROLL_PITCH_RATE_DPS);
+    ctrl->rate_setpoint.pitch_dps =
+        clamp_f(pitch_error * ctrl->pitch_attitude_kp, -MAX_ROLL_PITCH_RATE_DPS, MAX_ROLL_PITCH_RATE_DPS);
+    ctrl->rate_setpoint.yaw_dps =
+        clamp_f(yaw_rate_setpoint_dps, -MAX_YAW_RATE_DPS, MAX_YAW_RATE_DPS);
 
     correction.roll = pid_update(&ctrl->roll_rate_pid, ctrl->rate_setpoint.roll_dps, rate->roll_dps, dt_seconds);
     correction.pitch = pid_update(&ctrl->pitch_rate_pid, ctrl->rate_setpoint.pitch_dps, rate->pitch_dps, dt_seconds);

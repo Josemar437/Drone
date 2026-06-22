@@ -3,16 +3,18 @@
 # Uso:
 #   doxygen Doxyfile            # gera HTML em docs/doxygen/html/index.html
 # Requisitos:
-#   sudo apt install doxygen graphviz   # graphviz e opcional (grafos)
+#   sudo apt install doxygen graphviz   # graphviz e usado para os grafos
 #
 # Apenas as opcoes relevantes ao projeto estao definidas; as demais usam o
-# padrao do Doxygen.
+# padrao do Doxygen. A configuracao prioriza clareza: navegacao em arvore,
+# busca, secoes recolhiveis, indice alfabetico e grafos interativos (SVG).
 
 #---------------------------------------------------------------------------
 # Projeto
 #---------------------------------------------------------------------------
 PROJECT_NAME           = "Controladora de Voo (ESP-IDF)"
 PROJECT_BRIEF          = "Firmware de quadricoptero ESP32 em C - PWM, sensores, controle em cascata e servidor web"
+PROJECT_NUMBER         = "ESP-IDF 4.4"
 OUTPUT_DIRECTORY       = docs/doxygen
 OUTPUT_LANGUAGE        = Brazilian
 CREATE_SUBDIRS         = NO
@@ -44,20 +46,36 @@ HIDE_UNDOC_CLASSES     = NO
 INTERNAL_DOCS          = YES
 SORT_MEMBER_DOCS       = NO           # mantem a ordem do codigo-fonte
 SORT_BRIEF_DOCS        = NO
+SORT_MEMBERS_CTORS_1ST = NO
+# Clareza: mostra de onde vem cada simbolo e quem o usa.
+REPEAT_BRIEF           = YES
+BRIEF_MEMBER_DESC      = YES
+ALWAYS_DETAILED_SEC    = YES
+SHOW_INCLUDE_FILES     = YES
+SHOW_USED_FILES        = YES
+SHOW_FILES             = YES
+SHOW_NAMESPACES        = YES
+ALPHABETICAL_INDEX     = YES
+GENERATE_TODOLIST      = YES
+GENERATE_BUGLIST       = YES
+GENERATE_DEPRECATEDLIST = YES
 
 #---------------------------------------------------------------------------
 # Entradas
 #---------------------------------------------------------------------------
-INPUT                  = main \
-                         CLAUDE.md \
+INPUT                  = README.md \
+                         main \
+                         MODELAGEM_E_CONTROLE.md \
                          TESTE_BANCADA.md
 FILE_PATTERNS          = *.c *.h *.md
 RECURSIVE              = YES
 # index.html e a pagina web embutida (nao e codigo a documentar).
 EXCLUDE                = main/index.html
-EXCLUDE_PATTERNS       = */build/* */pwm/* */firmeware/*
+EXCLUDE_PATTERNS       = */build/*
 STRIP_FROM_PATH        = .
-USE_MDFILE_AS_MAINPAGE = CLAUDE.md
+USE_MDFILE_AS_MAINPAGE = README.md
+# Inclui os titulos do Markdown na arvore de navegacao (sumario das paginas .md).
+TOC_INCLUDE_HEADINGS   = 4
 
 #---------------------------------------------------------------------------
 # Navegacao pelo codigo-fonte
@@ -87,8 +105,20 @@ HTML_FILE_EXTENSION    = .html
 GENERATE_TREEVIEW      = YES          # arvore de navegacao lateral
 DISABLE_INDEX          = NO
 FULL_SIDEBAR           = NO
-HTML_COLORSTYLE        = AUTO_LIGHT
+HTML_COLORSTYLE        = LIGHT
+# Paleta agradavel (tons de azul) para legibilidade.
+HTML_COLORSTYLE_HUE    = 209
+HTML_COLORSTYLE_SAT    = 120
+HTML_COLORSTYLE_GAMMA  = 80
+# Secoes recolhiveis (grafos, detalhes) e largura confortavel da arvore.
+HTML_DYNAMIC_SECTIONS  = YES
+HTML_DYNAMIC_MENUS     = YES
+HTML_INDEX_NUM_ENTRIES = 100
+TREEVIEW_WIDTH         = 300
+ENUM_VALUES_PER_LINE   = 1
 SEARCHENGINE           = YES
+SEARCH_INCLUDES        = YES
+GENERATE_HTMLHELP      = NO
 
 #---------------------------------------------------------------------------
 # Saida LaTeX/PDF (desativada por padrao: requer LaTeX instalado)
@@ -119,11 +149,29 @@ PREDEFINED             = __attribute__(x)= \
                          asm(x)=
 
 #---------------------------------------------------------------------------
-# Grafos (opcionais; requerem graphviz/dot)
+# Grafos (requerem graphviz/dot, ja instalado)
 #---------------------------------------------------------------------------
-HAVE_DOT               = NO           # mude para YES se tiver graphviz instalado
-CALL_GRAPH             = NO
-CALLER_GRAPH           = NO
+HAVE_DOT               = YES
+DOT_NUM_THREADS        = 0            # usa todos os nucleos disponiveis
+DOT_COMMON_ATTR        = "fontname=Helvetica,fontsize=10"
+# SVG interativo: da para clicar nos nos e dar zoom/pan nos grafos grandes.
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+# Grafos de chamada e de quem-chama em CADA funcao (muito util neste firmware).
+CALL_GRAPH             = YES
+CALLER_GRAPH           = YES
+# Grafos de tipos, dependencias de include e de diretorios.
 CLASS_GRAPH            = YES
+COLLABORATION_GRAPH    = YES
+GROUP_GRAPHS           = YES
+GRAPHICAL_HIERARCHY    = YES
 INCLUDE_GRAPH          = YES
 INCLUDED_BY_GRAPH      = YES
+DIRECTORY_GRAPH        = YES
+# Limites generosos: o projeto e pequeno, entao mostramos os grafos completos.
+DOT_GRAPH_MAX_NODES    = 100
+MAX_DOT_GRAPH_DEPTH    = 0
+DOT_MULTI_TARGETS      = YES
+DOT_CLEANUP            = YES
+# Mostra o caminho de cada arquivo nos grafos de include.
+DOT_PATH               =

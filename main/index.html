@@ -1193,6 +1193,31 @@
           <button class="btn-stop" onclick="stopAll()">&#9632; PARAR TUDO</button>
         </div>
       </div>
+
+      <div class="flight-card">
+        <div class="section-title">Autoteste de eixos (/axisCheck)</div>
+        <div style="font-size:0.85em;opacity:0.85;margin:4px 0 10px;">
+          Read-only: NAO aciona motores. SEM HELICES, incline o frame e confira que
+          os motores do lado baixo aceleram (delta &gt; 0). Se algum sentido inverter,
+          NAO ative a estabilizacao (risco de tombamento).
+        </div>
+        <div class="output-grid">
+          <div class="output-cell"><span class="output-label">Roll</span><span class="output-value" id="axisRoll">--</span></div>
+          <div class="output-cell"><span class="output-label">Pitch</span><span class="output-value" id="axisPitch">--</span></div>
+          <div class="output-cell"><span class="output-label">Yaw</span><span class="output-value" id="axisYaw">--</span></div>
+          <div class="output-cell"><span class="output-label">IMU</span><span class="output-value" id="axisImu">--</span></div>
+        </div>
+        <div class="output-grid">
+          <div class="output-cell"><span class="output-label">M1 FL &Delta;</span><span class="output-value" id="axisD1">--</span></div>
+          <div class="output-cell"><span class="output-label">M2 FR &Delta;</span><span class="output-value" id="axisD2">--</span></div>
+          <div class="output-cell"><span class="output-label">M3 RR &Delta;</span><span class="output-value" id="axisD3">--</span></div>
+          <div class="output-cell"><span class="output-label">M4 RL &Delta;</span><span class="output-value" id="axisD4">--</span></div>
+        </div>
+        <div class="flight-actions">
+          <button class="btn-primary" onclick="fetchAxisCheck()">RODAR AUTOTESTE</button>
+          <button class="btn-warn" id="axisAutoBtn" onclick="toggleAxisAuto()">AUTO: OFF</button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1310,7 +1335,8 @@
     document.getElementById('tabBtnFlight').classList.toggle('active', tab === 'flight');
     document.getElementById('tabBtnTelemetry').classList.toggle('active', tab === 'telemetry');
     document.getElementById('tabBtnCalibration').classList.toggle('active', tab === 'calibration');
-    if (tab === 'flight') fetchFlightStatus();
+    if (tab !== 'flight') stopAxisAuto();
+    if (tab === 'flight') { fetchFlightStatus(); fetchAxisCheck(); }
     if (tab === 'telemetry') fetchTelemetry();
     if (tab === 'calibration') fetchCalibration();
   }
@@ -1733,6 +1759,67 @@
         telemetryText('flightNavigationReady',
           (data.altitudeHoldReady ? 'OK' : '--') + ' / ' + (data.gpsControlReady ? 'OK' : '--'));
       });
+  }
+
+  var axisAutoTimer = null;
+
+  function renderAxisCheck(d) {
+    var imu = document.getElementById('axisImu');
+    var ids = ['axisD1', 'axisD2', 'axisD3', 'axisD4'];
+    var i, e;
+    if (!d || !d.mpuOk) {
+      // Sem IMU valida: neutraliza as celulas para nao exibir leitura congelada
+      // (o operador nao deve confundir um valor antigo com validacao de eixo).
+      imu.textContent = 'SEM IMU';
+      document.getElementById('axisRoll').textContent = '--';
+      document.getElementById('axisPitch').textContent = '--';
+      document.getElementById('axisYaw').textContent = '--';
+      for (i = 0; i < 4; i++) {
+        e = document.getElementById(ids[i]);
+        e.textContent = '--';
+        e.style.color = '';
+      }
+      return;
+    }
+    imu.textContent = d.calibrated ? 'OK' : 'NAO CALIB';
+    document.getElementById('axisRoll').textContent = Number(d.state.roll).toFixed(1);
+    document.getElementById('axisPitch').textContent = Number(d.state.pitch).toFixed(1);
+    document.getElementById('axisYaw').textContent = Number(d.state.yaw).toFixed(1);
+    for (i = 0; i < 4; i++) {
+      var v = Number(d.motorDelta[i]);
+      e = document.getElementById(ids[i]);
+      e.textContent = (v > 0 ? '+' : '') + v.toFixed(0);
+      e.style.color = (v > 5) ? '#27c93f' : ((v < -5) ? '#ff5f56' : '');
+    }
+  }
+
+  function fetchAxisCheck() {
+    fetch('/axisCheck')
+      .then(function(r) { return r.json(); })
+      .then(renderAxisCheck)
+      .catch(function() {});
+  }
+
+  function toggleAxisAuto() {
+    var btn = document.getElementById('axisAutoBtn');
+    if (axisAutoTimer) {
+      clearInterval(axisAutoTimer);
+      axisAutoTimer = null;
+      btn.textContent = 'AUTO: OFF';
+    } else {
+      axisAutoTimer = setInterval(fetchAxisCheck, 250);
+      btn.textContent = 'AUTO: ON';
+      fetchAxisCheck();
+    }
+  }
+
+  function stopAxisAuto() {
+    if (axisAutoTimer) {
+      clearInterval(axisAutoTimer);
+      axisAutoTimer = null;
+      var btn = document.getElementById('axisAutoBtn');
+      if (btn) { btn.textContent = 'AUTO: OFF'; }
+    }
   }
 
   function sendFlightHeartbeat() {

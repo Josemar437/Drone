@@ -202,6 +202,51 @@ Verifique, com a placa **parada e nivelada**:
 > A malha estabilizada **só arma** com `calibrationComplete:true` (senão failsafe
 > `MPU_NOT_CALIBRATED`).
 
+### 6.1 Autoteste de eixos (`/axisCheck`) — validação da convenção de frame (CRÍTICO)
+
+Confirma que a cadeia de sinais (IMU → swap roll/pitch → cascata → mixer) reage
+**no sentido certo**. É **read-only**: não aciona motores nem altera o controlador
+ativo. Faça isto **antes** de habilitar a malha estabilizada (8.2).
+
+No console web, aba **Controle de Voo** → painel **"Autoteste de eixos"**: clique
+**RODAR AUTOTESTE** ou ligue **AUTO** para ver `motorDelta` ao vivo enquanto
+inclina o frame (verde = acelera, vermelho = desacelera). Equivalente por linha de
+comando:
+
+```bash
+curl -s http://192.168.4.1/axisCheck | python3 -m json.tool
+```
+
+Saída (campos):
+- `state` (roll/pitch/yaw medidos), `rate` (taxas),
+- `correction` (o que a cascata aplicaria com setpoint nivelado),
+- `motors` e `motorDelta` (delta de cada motor vs. hover; **>0 = aceleraria**),
+- `motorLabels`: `["M1_FL","M2_FR","M3_RR","M4_RL"]`.
+
+Com a placa **nivelada e parada**: `state` ≈ 0 e `motorDelta` ≈ `[0,0,0,0]`.
+
+Incline **e segure** o frame e leia `motorDelta` — os motores do **lado baixo
+devem acelerar** (delta > 0):
+
+| Inclinação física | Lado baixo | `motorDelta` esperado (>0) |
+|-------------------|-----------|-----------------------------|
+| Frente para baixo (nariz desce) | frente | **M1_FL, M2_FR** |
+| Trás para baixo | traseira | **M3_RR, M4_RL** |
+| Direita para baixo | direita | **M2_FR, M3_RR** |
+| Esquerda para baixo | esquerda | **M1_FL, M4_RL** |
+| Girar (yaw) à direita | — | par de reação acelera (ver sinais de yaw) |
+
+**Critérios:**
+- [ ] Nivelado: `state` e `motorDelta` ≈ 0.
+- [ ] Para **cada** inclinação, os motores do lado baixo aparecem com `motorDelta>0`
+      e os do lado alto com `motorDelta<0` (conforme a tabela).
+- [ ] Yaw: ao girar, o par de rotação correto acelera.
+
+> ⚠️ Se **qualquer** sentido estiver invertido, **PARE**: há inversão de eixo/sinal
+> (rever `MPU_REMAP_ROTATE_Y_90` / `CONTROL_SWAP_ROLL_PITCH` em `config.h` e a
+> montagem física da IMU). Habilitar a estabilização nessa condição causa
+> **realimentação positiva → tombamento na decolagem**. Não prossiga para 8.2.
+
 ---
 
 ## 7. Calibração dos motores (`/calibration`, `/setCalibration`, `/resetCalibration`)
@@ -280,6 +325,55 @@ curl -s -o /dev/null -w "%{http_code}\n" "http://192.168.4.1/setFlight?throttle=
 curl -s http://192.168.4.1/resetPid     # -> "PID reiniciado"
 ```
 
+### 8.5 Desaturação e priorização do mixer (saturação)
+Valida a priorização **roll/pitch > coletivo > yaw** quando o comando não cabe na
+faixa do ESC. Só o caminho **estabilizado** (8.2) usa o mixer com desaturação
+(`quad_pid_mix_x_desaturated`); a mixagem manual (8.1) **não** exercita esta lógica.
+
+> ⚠️ **SEM HÉLICES** e frame **firmemente preso**: este teste usa throttle alto
+> (motores girando rápido) combinado com inclinação para forçar a saturação.
+
+Com a malha estabilizada ativa (loop do 8.2), use **throttle alto** e **incline o
+frame** (preso!) de forma acentuada, porém **< 65°** (acima disso dispara
+`EXCESSIVE_TILT`):
+```bash
+# Loop de comando com throttle alto (mantenha rodando, <600 ms entre envios)
+while true; do
+  curl -s "http://192.168.4.1/setFlight?throttle=1900&rollSp=0&pitchSp=0&apply=1&stabilize=1" >/dev/null
+  sleep 0.2
+done
+# Em outro terminal, observe os blocos "mixer" e "timing":
+curl -s http://192.168.4.1/flightStatus | python3 -m json.tool
+```
+
+Inclinando o frame (gerando correção grande) com throttle a 1900:
+- [ ] `mixer.saturated` vai a **`true`** durante a saturação.
+- [ ] `mixer.collectiveAdjustUs` fica **negativo** (o coletivo é **reduzido** —
+      air-mode — para preservar o torque de roll/pitch).
+- [ ] Em `motors[]`, o diferencial de roll/pitch é **mantido**: os motores do lado
+      alto saturam perto de 2000, mas os do lado baixo ficam **claramente menores**
+      (não colapsam todos no mesmo valor). `correction.roll`/`.pitch` continuam
+      refletindo a correção comandada.
+
+Agora some **yaw** ao mesmo cenário saturado e confirme que **o yaw cede primeiro**:
+```bash
+while true; do
+  curl -s "http://192.168.4.1/setFlight?throttle=1900&yawSp=90&apply=1&stabilize=1" >/dev/null
+  sleep 0.2
+done
+```
+- [ ] Com roll/pitch já saturando, o diferencial de yaw entre os pares (M1,M3) e
+      (M2,M4) aparece **reduzido/ausente** em `motors[]`, enquanto roll/pitch são
+      preservados — o yaw é escalado para a folga restante.
+- [ ] Sem saturação (ex.: `throttle=1300`, frame nivelado), `mixer.saturated` é
+      **`false`** e `collectiveAdjustUs` ≈ 0 (saída idêntica à mixagem normal).
+
+> **Diagnóstico de tempo real (bloco `timing`):** aproveite para conferir
+> `controlDtMs` ≈ 20, `loopJitterMs` ≈ 0, `imuAgeMs` baixo e `repeatedImuSamples`
+> **estável** (não crescente) — confirmam a sincronização IMU↔controle. Se a
+> cascata não obtiver o mutex no prazo, o failsafe aparece como
+> `failsafe:"CONTROLLER_TIMEOUT"` (distinto de `MPU_INVALID`).
+
 ---
 
 ## 9. Verificação do pulso do ESC no osciloscópio (CRÍTICO)
@@ -317,7 +411,12 @@ corresponde ao pulso comandado. Faça **antes de qualquer voo**.
 - [ ] Cada motor mapeado para a posição física correta e sentido de giro certo.
 - [ ] Deadbands medidos e calibração aplicada/persistida (NVS).
 - [ ] MPU calibra e a atitude segue a inclinação no sentido correto; BMP pronto.
+- [ ] `/axisCheck`: nivelado ≈ 0; inclinando, os motores do lado baixo aceleram
+      (`motorDelta>0`) em todos os eixos (validação da convenção de frame).
 - [ ] Malha estabilizada corrige inclinações na direção certa.
+- [ ] Sob saturação (throttle alto + inclinação), `mixer.saturated:true`, coletivo
+      reduzido (`collectiveAdjustUs<0`), roll/pitch preservados e yaw cedendo primeiro.
+- [ ] `timing` saudável: `controlDtMs`≈20, `loopJitterMs`≈0, `repeatedImuSamples` estável.
 - [ ] Todos os failsafes disparam e travam; `/stopAll` libera o rearme.
 - [ ] Pulso do ESC validado no osciloscópio (250 Hz, larguras corretas).
 

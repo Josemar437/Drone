@@ -16,7 +16,14 @@
 #include "esp_log.h"
 #include "freertos/task.h"
 
-#define MPU_READ_INTERVAL_MS      (20U)
+/* A IMU e lida a ~200 Hz (5 ms), bem acima dos 50 Hz da malha de controle, para
+ * que cada ciclo de controle disponha sempre de uma amostra fresca. Com a IMU e o
+ * controle na mesma taxa (antes, 20 ms ambos) e tarefas nao sincronizadas, a fase
+ * derivava e o controle ora reusava a mesma amostra (ciclo pulado), ora media dt
+ * irregular, degradando a rejeicao de perturbacao no hover. A fusao de atitude usa
+ * dt real por amostra, entao amostrar mais rapido apenas melhora a precisao; o
+ * magnetometro se auto-limita pelo bit DRDY. */
+#define MPU_READ_INTERVAL_MS      (5U)
 #define BMP_READ_INTERVAL_MS      (200U)
 #define SENSOR_RETRY_INTERVAL_MS  (5000U)
 #define SEA_LEVEL_HPA             (1013.25f)

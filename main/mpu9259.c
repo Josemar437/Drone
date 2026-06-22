@@ -174,6 +174,7 @@ static void init_defaults(mpu9259_t *self)
     self->calibration_complete = false;
     self->magnetometer_yaw_initialized = false;
     self->last_attitude_update_ms = 0U;
+    self->sample_seq = 0U;
     self->rejected_sample_count = 0U;
     self->filter_initialized = false;
     self->error_count = 0U;
@@ -195,6 +196,7 @@ static void reset_filters(mpu9259_t *self)
     self->yaw_deg = 0.0f;
     self->magnetometer_yaw_initialized = false;
     self->last_attitude_update_ms = 0U;
+    self->sample_seq = 0U;
     self->rejected_sample_count = 0U;
     self->filter_initialized = false;
 }
@@ -339,11 +341,19 @@ static void update_calibration(mpu9259_t *self, float accel_x, float accel_y, fl
  * da mistura muda conforme ha movimento intencional, privilegiando o giroscopio
  * durante manobras e o acelerometro em repouso.
  *
- * @param now Timestamp atual (millis) para calcular o dt do passo.
+ * @param self        Instancia do driver da IMU (estado do filtro).
+ * @param data        Saida: atitude estimada (roll/pitch/yaw) e flags.
+ * @param raw_accel_x Aceleracao bruta no eixo X (g), ja remapeada.
+ * @param raw_accel_y Aceleracao bruta no eixo Y (g), ja remapeada.
+ * @param raw_accel_z Aceleracao bruta no eixo Z (g), ja remapeada.
+ * @param gyro_x      Velocidade angular no eixo X (graus/s).
+ * @param gyro_y      Velocidade angular no eixo Y (graus/s).
+ * @param gyro_z      Velocidade angular no eixo Z (graus/s).
+ * @param now         Timestamp atual (millis) para calcular o dt do passo.
  */
-static void update_attitude(mpu9259_t *self, mpu9259_data_t *data,
-                            float raw_accel_x, float raw_accel_y, float raw_accel_z,
-                            float gyro_x, float gyro_y, float gyro_z, uint32_t now)
+static float update_attitude(mpu9259_t *self, mpu9259_data_t *data,
+                             float raw_accel_x, float raw_accel_y, float raw_accel_z,
+                             float gyro_x, float gyro_y, float gyro_z, uint32_t now)
 {
     float dt_seconds = DEFAULT_DT_SECONDS;
     bool first_sample;
@@ -455,6 +465,8 @@ static void update_attitude(mpu9259_t *self, mpu9259_data_t *data,
     data->roll_deg = self->roll_deg;
     data->pitch_deg = self->pitch_deg;
     data->yaw_deg = self->yaw_deg;
+    data->dt_seconds = dt_seconds;
+    return dt_seconds;
 }
 
 /**
@@ -575,8 +587,8 @@ bool mpu9259_read(mpu9259_t *self, mpu9259_data_t *data)
     data->calibration_progress =
         (uint8_t)((self->calibration_sample_count * 100U) / CALIBRATION_SAMPLE_TARGET);
     now = millis();
-    update_attitude(self, data, calibrated_accel_x, calibrated_accel_y, calibrated_accel_z,
-                    data->gyro_x, data->gyro_y, data->gyro_z, now);
+    (void)update_attitude(self, data, calibrated_accel_x, calibrated_accel_y, calibrated_accel_z,
+                          data->gyro_x, data->gyro_y, data->gyro_z, now);
 
     if (self->magnetometer_available)
     {
@@ -614,6 +626,8 @@ bool mpu9259_read(mpu9259_t *self, mpu9259_data_t *data)
     self->error_count = 0U;
     data->error_count = 0U;
     data->updated_at_ms = now;
+    self->sample_seq++;
+    data->sample_seq = self->sample_seq;
     data->valid = true;
     return true;
 }

@@ -69,7 +69,9 @@ static int32_t speed_to_pct(int32_t speed_us)
 
 /**
  * @brief Responde texto puro com um status HTTP especifico.
+ * @param req    Requisicao HTTP a responder.
  * @param status Linha de status (ex.: "423 Locked").
+ * @param body   Corpo da resposta (texto puro).
  */
 static esp_err_t send_text(httpd_req_t *req, const char *status, const char *body)
 {
@@ -409,6 +411,8 @@ static esp_err_t set_flight_handler(httpd_req_t *req)
         return send_text(req, "423 Locked", "Motores ainda armando");
     }
     (void)read_query(req, query, sizeof(query));
+    apply = arg_equals(query, "apply", "1");
+    stabilize = arg_equals(query, "stabilize", "1");
     flight_control_get_status(&st);
     flight_control_get_gains(&roll_gains, &pitch_gains, &yaw_gains);
 
@@ -416,7 +420,14 @@ static esp_err_t set_flight_handler(httpd_req_t *req)
                               (float)ESC_MIN_US, (float)ESC_MAX_US);
     cmd.roll_setpoint_deg = clamp_f(arg_float(query, "rollSp", st.setpoint.roll_deg), -35.0f, 35.0f);
     cmd.pitch_setpoint_deg = clamp_f(arg_float(query, "pitchSp", st.setpoint.pitch_deg), -35.0f, 35.0f);
-    cmd.yaw_setpoint_deg = clamp_f(arg_float(query, "yawSp", st.setpoint.yaw_deg), -180.0f, 180.0f);
+    if (stabilize)
+    {
+        cmd.yaw_setpoint_deg = clamp_f(arg_float(query, "yawSp", st.yaw_rate_command_dps), -90.0f, 90.0f);
+    }
+    else
+    {
+        cmd.yaw_setpoint_deg = clamp_f(arg_float(query, "yawSp", st.setpoint.yaw_deg), -180.0f, 180.0f);
+    }
     cmd.manual_roll_deg = clamp_f(arg_float(query, "rollState", st.state.roll_deg), -180.0f, 180.0f);
     cmd.manual_pitch_deg = clamp_f(arg_float(query, "pitchState", st.state.pitch_deg), -180.0f, 180.0f);
     cmd.manual_yaw_deg = clamp_f(arg_float(query, "yawState", st.state.yaw_deg), -180.0f, 180.0f);
@@ -431,8 +442,6 @@ static esp_err_t set_flight_handler(httpd_req_t *req)
     cmd.yaw_gains.kd = arg_float(query, "yawKd", yaw_gains.kd);
 
     flight_control_apply_command(&cmd);
-    apply = arg_equals(query, "apply", "1");
-    stabilize = arg_equals(query, "stabilize", "1");
     flight_control_mark_command();
 
     if (apply && stabilize)
@@ -514,8 +523,14 @@ static esp_err_t set_vertical_gains_handler(httpd_req_t *req)
     ki = arg_float(query, "ki", v.ki_us_per_ms);
     vmax = arg_float(query, "vmax", v.max_velocity_ms);
     flight_control_set_vertical_gains(kp, ki, vmax);
-    flight_control_get_vertical(&v);
-    vertical_params_save(v.kp_us_per_ms, v.ki_us_per_ms, v.max_velocity_ms);
+    /* A tarefa de controle aplica os ganhos em s_vertical de forma assincrona
+     * (escrita single-writer), entao nao se le de volta aqui. Persiste-se os
+     * valores efetivos replicando a sanitizacao de vertical_control_set_gains
+     * (so altera quando o pedido e valido), mantendo a NVS coerente. */
+    if (kp <= 0.0f)   { kp = v.kp_us_per_ms; }
+    if (ki < 0.0f)    { ki = v.ki_us_per_ms; }
+    if (vmax <= 0.0f) { vmax = v.max_velocity_ms; }
+    vertical_params_save(kp, ki, vmax);
     return send_text(req, "200 OK", "Ganhos verticais atualizados e salvos");
 }
 
@@ -528,7 +543,10 @@ static esp_err_t set_vertical_gains_handler(httpd_req_t *req)
  */
 static esp_err_t flight_status_handler(httpd_req_t *req)
 {
-    char buf[1100];
+    /* Buffer dimensionado com folga para todo o JSON, incluindo os blocos de
+     * diagnostico (timing/mixer). J_APPEND e limitado por 'cap' (nunca estoura);
+     * a folga evita truncamento silencioso que geraria JSON malformado. */
+    char buf[1600];
     size_t off = 0U;
     const size_t cap = sizeof(buf);
     flight_status_t st;
@@ -555,11 +573,15 @@ static esp_err_t flight_status_handler(httpd_req_t *req)
              bool_str(flight_control_is_enabled()),
              flight_failsafe_text(flight_control_failsafe_reason()),
              bool_str(flight_control_failsafe_latched()));
+    J_APPEND(",\"phase\":\"%s\"", flight_phase_text(st.phase));
     J_APPEND(",\"commandAgeMs\":%u,\"altitudeHoldReady\":%s,\"gpsControlReady\":%s",
              (unsigned)flight_control_command_age_ms(),
              bool_str(altitude_hold_ready), bool_str(gps_control_ready));
     J_APPEND(",\"setpoint\":{\"throttle\":%.0f,\"roll\":%.2f,\"pitch\":%.2f,\"yaw\":%.2f}",
              st.setpoint.throttle_us, st.setpoint.roll_deg, st.setpoint.pitch_deg, st.setpoint.yaw_deg);
+    J_APPEND(",\"yawControl\":{\"commandDps\":%.2f,\"activeDps\":%.2f}",
+             st.yaw_rate_command_dps, st.yaw_rate_active_dps);
+    J_APPEND(",\"collectiveThrottle\":%.0f", st.collective_throttle_us);
     J_APPEND(",\"state\":{\"roll\":%.2f,\"pitch\":%.2f,\"yaw\":%.2f}",
              st.state.roll_deg, st.state.pitch_deg, st.state.yaw_deg);
     J_APPEND(",\"rate\":{\"roll\":%.2f,\"pitch\":%.2f,\"yaw\":%.2f}",
@@ -572,6 +594,13 @@ static esp_err_t flight_status_handler(httpd_req_t *req)
              st.correction.roll, st.correction.pitch, st.correction.yaw);
     J_APPEND(",\"motors\":[%d,%d,%d,%d]",
              (int)st.output.m1, (int)st.output.m2, (int)st.output.m3, (int)st.output.m4);
+    J_APPEND(",\"mixer\":{\"saturated\":%s,\"collectiveAdjustUs\":%.1f}",
+             bool_str(st.mixer_saturated), (double)st.mixer_collective_adjust_us);
+    J_APPEND(",\"timing\":{\"controlDtMs\":%.2f,\"loopJitterMs\":%.2f,\"imuAgeMs\":%u,"
+             "\"imuSampleSeq\":%u,\"repeatedImuSamples\":%u}",
+             (double)st.control_dt_ms, (double)st.loop_jitter_ms,
+             (unsigned)st.imu_age_ms, (unsigned)st.imu_sample_seq,
+             (unsigned)st.repeated_imu_samples);
     J_APPEND(",\"vertical\":{\"enabled\":%s,\"engaged\":%s,\"altitudeEstM\":%.2f,"
              "\"velocityEstMs\":%.2f,\"vzSetpointMs\":%.2f,\"accelVertMs2\":%.2f,"
              "\"hoverUs\":%.0f,\"throttleUs\":%.0f,\"saturated\":%s,"
@@ -585,6 +614,40 @@ static esp_err_t flight_status_handler(httpd_req_t *req)
              (double)vert.max_velocity_ms,
              bool_str(flight_control_vertical_baro_guard_enabled()));
     J_APPEND(",\"arming\":%s}", bool_str(app_state_is_arming()));
+    return send_json(req, buf);
+}
+
+/**
+ * @brief GET /axisCheck : autoteste de eixos (preview seguro da estabilizacao).
+ *
+ * Read-only: nao aciona motores nem altera o controlador ativo. Para a atitude
+ * medida no instante, mostra a correcao que a cascata aplicaria (nivelado) e o
+ * delta de cada motor frente ao hover. Apoia a validacao da convencao de frame
+ * (pendencia C1): inclinar o frame e conferir que os motores do lado baixo tem
+ * `motorDelta` > 0. Procedimento de bancada, SEM HELICES.
+ */
+static esp_err_t axis_check_handler(httpd_req_t *req)
+{
+    char buf[640];
+    size_t off = 0U;
+    const size_t cap = sizeof(buf);
+    axis_self_test_t t;
+    const bool ok = flight_control_axis_self_test(&t);
+
+    J_APPEND("{\"mpuOk\":%s,\"calibrated\":%s,\"hoverUs\":%.0f",
+             bool_str(ok), bool_str(t.calibrated), (double)t.hover_throttle_us);
+    J_APPEND(",\"state\":{\"roll\":%.2f,\"pitch\":%.2f,\"yaw\":%.2f}",
+             (double)t.state.roll_deg, (double)t.state.pitch_deg, (double)t.state.yaw_deg);
+    J_APPEND(",\"rate\":{\"roll\":%.2f,\"pitch\":%.2f,\"yaw\":%.2f}",
+             (double)t.rate.roll_dps, (double)t.rate.pitch_dps, (double)t.rate.yaw_dps);
+    J_APPEND(",\"correction\":{\"roll\":%.2f,\"pitch\":%.2f,\"yaw\":%.2f}",
+             (double)t.correction.roll, (double)t.correction.pitch, (double)t.correction.yaw);
+    J_APPEND(",\"motors\":[%d,%d,%d,%d]",
+             (int)t.output.m1, (int)t.output.m2, (int)t.output.m3, (int)t.output.m4);
+    J_APPEND(",\"motorDelta\":[%.0f,%.0f,%.0f,%.0f]",
+             (double)t.motor_delta_us[0], (double)t.motor_delta_us[1],
+             (double)t.motor_delta_us[2], (double)t.motor_delta_us[3]);
+    J_APPEND(",\"motorLabels\":[\"M1_FL\",\"M2_FR\",\"M3_RR\",\"M4_RL\"]}");
     return send_json(req, buf);
 }
 
@@ -661,7 +724,7 @@ esp_err_t web_server_start(sensor_hub_t *hub)
 
     s_hub = hub;
     config.server_port = 80;
-    config.max_uri_handlers = 16;
+    config.max_uri_handlers = 18;
     config.stack_size = 8192;
     config.lru_purge_enable = true;
 
@@ -681,6 +744,7 @@ esp_err_t web_server_start(sensor_hub_t *hub)
     register_uri("/sensors", sensors_handler);
     register_uri("/setFlight", set_flight_handler);
     register_uri("/flightStatus", flight_status_handler);
+    register_uri("/axisCheck", axis_check_handler);
     register_uri("/resetPid", reset_pid_handler);
     register_uri("/setVerticalHold", set_vertical_hold_handler);
     register_uri("/setVerticalGains", set_vertical_gains_handler);

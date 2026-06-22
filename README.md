@@ -14,11 +14,15 @@ validada em voo.
 ## Recursos
 
 - PWM de 4 ESCs via LEDC (1000–2000 us @ 250 Hz), com calibracao por motor.
-- Fusao de atitude (acelerometro + giroscopio + magnetometro) na IMU MPU-925x.
+- Fusao de atitude (acelerometro + giroscopio + magnetometro) na IMU MPU-925x,
+  amostrada a ~200 Hz; `dt` real e deteccao de amostra repetida.
 - Barometro BMP280 (altitude relativa filtrada) e GPS NEO-6M (NMEA).
 - Controle de voo em cascata (atitude -> velocidade angular) a 50 Hz.
+- Mixagem em X com desaturacao priorizada (roll/pitch > coletivo > yaw).
 - Failsafes: perda de comando, IMU invalida/nao calibrada, inclinacao excessiva,
-  parada de emergencia (com travamento de rearme).
+  contencao do controlador (`CONTROLLER_TIMEOUT`), parada de emergencia
+  (com travamento de rearme).
+- Autoteste de eixos (`/axisCheck`) e telemetria de diagnostico (timing/mixer).
 - Calibracao persistida em NVS.
 - Console web (Wi-Fi AP) com abas de teste, voo e calibracao + rotas JSON.
 
@@ -126,8 +130,8 @@ idf.py -p /dev/ttyUSB0 erase-flash
 ### Rotas HTTP
 
 `/` `/status` `/health` `/sensors` `/setMotor` `/stopAll` `/setFlight`
-`/flightStatus` `/resetPid` `/calibration` `/setCalibration`
-`/resetCalibration` `/findDeadband`
+`/flightStatus` `/axisCheck` `/resetPid` `/setVerticalHold` `/setVerticalGains`
+`/calibration` `/setCalibration` `/resetCalibration` `/findDeadband`
 
 Exemplos:
 
@@ -155,6 +159,7 @@ osciloscopio.
 CMakeLists.txt          Projeto ESP-IDF
 sdkconfig.defaults      Defaults de build
 Doxyfile                Configuracao da documentacao
+MODELAGEM_E_CONTROLE.md Equacionamento (estimativa, PID, cascata, mixagem, vertical)
 TESTE_BANCADA.md        Guia de teste em bancada (sem helices)
 main/
   app_main.c            Inicializacao e criacao das tarefas
@@ -178,7 +183,11 @@ main/
 
 ---
 
-## Documentacao da API
+## Documentacao tecnica e de API
+
+Para a **modelagem e o equacionamento** (fusao de atitude, barometria, PID,
+cascata atitude->taxa, mixagem em X, controle vertical e failsafes) com o
+mapeamento para o codigo, veja [`MODELAGEM_E_CONTROLE.md`](MODELAGEM_E_CONTROLE.md).
 
 O codigo e documentado em estilo Doxygen. Para gerar a referencia HTML:
 

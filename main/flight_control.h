@@ -27,6 +27,18 @@
 #include "sensor_hub.h"
 #include "vertical_control.h"
 
+/** @brief Estado discreto da maquina de voo. */
+typedef enum
+{
+    FLIGHT_PHASE_DISARMED = 0,
+    FLIGHT_PHASE_ARMING,
+    FLIGHT_PHASE_IDLE,
+    FLIGHT_PHASE_TAKEOFF_RAMP,
+    FLIGHT_PHASE_HOVER,
+    FLIGHT_PHASE_FLIGHT,
+    FLIGHT_PHASE_FAILSAFE
+} flight_phase_t;
+
 /**
  * @brief Comando completo vindo da interface (setpoints, estado manual e ganhos).
  *
@@ -39,7 +51,7 @@ typedef struct
     float throttle_us;        /**< Empuxo base (us). */
     float roll_setpoint_deg;  /**< Rolagem desejada. */
     float pitch_setpoint_deg; /**< Arfagem desejada. */
-    float yaw_setpoint_deg;   /**< Guinada desejada. */
+    float yaw_setpoint_deg;   /**< Heading manual ou taxa de yaw estabilizada (dps). */
     float manual_roll_deg;    /**< Atitude manual (so com controle desabilitado). */
     float manual_pitch_deg;   /**< Atitude manual (so com controle desabilitado). */
     float manual_yaw_deg;     /**< Atitude manual (so com controle desabilitado). */
@@ -59,7 +71,39 @@ typedef struct
     angular_rate_setpoint_t rate_setpoint; /**< Setpoint de taxa da cascata. */
     axis_correction_t correction;          /**< Ultima correcao calculada. */
     quad_motor_output_t output;            /**< Ultima saida de motores. */
+    flight_phase_t phase;                  /**< Estado discreto da maquina de voo. */
+    float yaw_rate_command_dps;            /**< Comando bruto de yaw vindo da interface. */
+    float yaw_rate_active_dps;             /**< Comando de yaw apos slew/deadband. */
+    float collective_throttle_us;          /**< Coletivo aplicado antes da mixagem. */
+    bool mixer_saturated;                  /**< true se a mixagem perdeu autoridade por limite. */
+    float mixer_collective_adjust_us;      /**< Deslocamento comum aplicado na desaturacao. */
+    float control_dt_ms;                   /**< dt real usado pela ultima iteracao de controle. */
+    float loop_jitter_ms;                  /**< Desvio do periodo da tarefa frente ao nominal. */
+    uint32_t imu_age_ms;                   /**< Idade da amostra IMU usada/observada. */
+    uint32_t imu_sample_seq;               /**< Sequencia da ultima amostra IMU processada. */
+    uint32_t repeated_imu_samples;         /**< Amostras IMU repetidas ignoradas pela malha. */
 } flight_status_t;
+
+/**
+ * @brief Resultado do autoteste de eixos (apoio a validacao da convencao de frame).
+ *
+ * Exercita a cadeia real de sinais (IMU -> swap roll/pitch -> cascata -> mixer)
+ * para a atitude medida no instante, com setpoint nivelado, SEM acionar motores e
+ * SEM perturbar o controlador ativo (usa controlador temporario). Permite, em
+ * bancada e sem helices, confirmar que inclinar fisicamente o frame gera a
+ * correcao no sentido certo e acelera os motores do lado correto.
+ */
+typedef struct
+{
+    bool mpu_ok;                   /**< Snapshot da IMU valido. */
+    bool calibrated;              /**< IMU calibrada (cascata so arma calibrada). */
+    flight_state_t state;          /**< Atitude medida (apos swap), graus. */
+    angular_rate_state_t rate;     /**< Taxas medidas (apos swap), graus/s. */
+    axis_correction_t correction;  /**< Correcao que a cascata aplicaria (nivelado). */
+    quad_motor_output_t output;    /**< Motores no hover nominal com essa correcao. */
+    float motor_delta_us[4];       /**< Delta de cada motor vs. hover (>0 = acelera). */
+    float hover_throttle_us;       /**< Empuxo base usado no preview. */
+} axis_self_test_t;
 
 /**
  * @brief Inicializa controladores, ganhos, mutexes e estado. Guarda o sensor_hub.
@@ -87,6 +131,9 @@ bool flight_control_task_running(void);
  * @return String constante (ex.: "COMMAND_TIMEOUT"); nunca NULL.
  */
 const char *flight_failsafe_text(flight_failsafe_reason_t reason);
+
+/** @brief Converte o estado discreto de voo em texto estavel para telemetria. */
+const char *flight_phase_text(flight_phase_t phase);
 
 /** @brief Indica se a malha estabilizada esta ativa. */
 bool flight_control_is_enabled(void);
@@ -119,6 +166,20 @@ void flight_control_get_gains(pid_gains_t *roll, pid_gains_t *pitch, pid_gains_t
  * @param status Saida (ignorado se NULL).
  */
 void flight_control_get_status(flight_status_t *status);
+
+/**
+ * @brief Autoteste de eixos: preview seguro da resposta da estabilizacao.
+ *
+ * Para a atitude medida no instante, calcula (com controlador temporario, sem
+ * tocar o controlador ativo e sem acionar motores) a correcao da cascata com
+ * setpoint nivelado e a saida de motores no hover nominal. Apoia a validacao
+ * fisica da convencao de eixos (pendencia C1): inclinar o frame e conferir que os
+ * motores do lado baixo "aceleram" (`motor_delta_us` > 0).
+ *
+ * @param out Saida (ignorado se NULL).
+ * @return true se a IMU forneceu um snapshot valido para o preview.
+ */
+bool flight_control_axis_self_test(axis_self_test_t *out);
 
 /**
  * @brief Aplica setpoints, estado manual e ganhos vindos da interface.

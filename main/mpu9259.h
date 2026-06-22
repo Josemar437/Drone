@@ -49,6 +49,8 @@ typedef struct
     bool calibration_complete;     /**< true apos a autocalibracao terminar. */
     uint8_t calibration_progress;  /**< Progresso da calibracao (0..100 %). */
     uint32_t updated_at_ms;        /**< Timestamp da amostra (millis). */
+    uint32_t sample_seq;           /**< Sequencia monotona da amostra valida. */
+    float dt_seconds;              /**< Intervalo real usado na fusao desta amostra. */
     uint16_t error_count;          /**< Falhas de leitura consecutivas. */
     uint16_t rejected_sample_count;/**< Total de amostras rejeitadas. */
 } mpu9259_data_t;
@@ -79,6 +81,7 @@ typedef struct
     bool calibration_complete;
     bool magnetometer_yaw_initialized;
     uint32_t last_attitude_update_ms;
+    uint32_t sample_seq;
     uint16_t rejected_sample_count;
     bool filter_initialized;
     uint16_t error_count;
